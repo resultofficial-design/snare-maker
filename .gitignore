@@ -1,0 +1,55 @@
+# ── CMake / build output ──────────────────────────────────────────────────────
+build/
+out/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+_deps/
+
+# ── Visual Studio generated files ─────────────────────────────────────────────
+*.sln
+*.slnx
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.suo
+*.user
+*.sdf
+*.opensdf
+.vs/
+x64/
+Debug/
+Release/
+ipch/
+
+# ── CMake in-source build artefacts (JUCE subdirectory) ──────────────────────
+JUCE/
+ALL_BUILD.dir/
+INSTALL.dir/
+ZERO_CHECK.dir/
+SnareMaker.dir/
+
+# ── Plugin artefacts ──────────────────────────────────────────────────────────
+SnareMaker_artefacts/
+*.vst3
+*.dll
+*.exe
+*.lib
+*.exp
+*.pdb
+*.ilk
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+*.xcodeproj/
+*.xcworkspace/
+*.dylib
+
+# ── Claude Code project memory (tool-internal) ────────────────────────────────
+.claude/
+
+# ── IDE / editor ──────────────────────────────────────────────────────────────
+.idea/
+*.swp
+*~
