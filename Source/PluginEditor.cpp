@@ -1,225 +1,96 @@
 #include "PluginEditor.h"
 
 // =============================================================================
-// Colour palette  (file-local)
+// File-local colour palette and layout constants
 // =============================================================================
+
 namespace
 {
-    const juce::Colour kBgWindow  { 0xff0d0d1a };
-    const juce::Colour kBgPanel   { 0xff181828 };
-    const juce::Colour kBgTrack   { 0xff252538 };
-    const juce::Colour kBgTitleBar{ 0xff13132a };
+    // ── Colours ───────────────────────────────────────────────────────────────
+    const juce::Colour kBgWindow   { 0xff0d0d1a };
+    const juce::Colour kBgDrum     { 0xff0e0e1e };
+    const juce::Colour kBgZone     { 0xff111122 };
+    const juce::Colour kBgZoneHov  { 0xff181832 };
+    const juce::Colour kBgZoneAct  { 0xff1c1c38 };
+    const juce::Colour kTextBright { 0xffffffff };
+    const juce::Colour kTextMuted  { 0xff8888aa };
+    const juce::Colour kTextDim    { 0xff444460 };
+    const juce::Colour kDivider    { 0xff252538 };
 
-    const juce::Colour kTextBright{ 0xffffffff };
-    const juce::Colour kTextMuted { 0xff8888aa };
+    const juce::Colour kPitchBlue  { 0xff4a9eff };
+    const juce::Colour kNoiseRed   { 0xffe94560 };
+    const juce::Colour kRoomPurple { 0xffaa55ff };
 
-    const juce::Colour kPitchBlue { 0xff4a9eff };
-    const juce::Colour kNoiseRed  { 0xffe94560 };
-    const juce::Colour kOutTeal   { 0xff00d4aa };
-
-    // ── Layout constants ──────────────────────────────────────────────────
-    //
-    //  Phase 2b layout: 13 columns × 100 px = 1300 px wide, 400 px tall
-    //
-    //  Cols  0-3  : Pitch panel  (body freq, pitch amt, pitch decay, phase off)
-    //  Cols  4-11 : Noise panel  (level, attack, decay, sustain, release,
-    //                             filt freq, filt Q, brightness)
-    //  Col  12    : Output panel (output gain)
-    //
-    constexpr int kColW    = 100;
-    constexpr int kPanelY  = 50;    // section panels start here
-    constexpr int kComboY  = 68;    // combo-box row (between title bar and sliders)
-    constexpr int kComboH  = 22;
-    constexpr int kTopY    = 100;   // parameter-name labels start here
-    constexpr int kLabelH  = 18;
-    constexpr int kSliderH = 240;   // includes built-in TextBoxBelow (18 px)
-    constexpr int kPadX    = 8;
-
-    // Column indices – kept as named constants for clarity
-    constexpr int kColBodyFreq     = 0;
-    constexpr int kColPitchAmount  = 1;
-    constexpr int kColPitchDecay   = 2;
-    constexpr int kColPhaseOffset  = 3;
-
-    constexpr int kColNoiseLevel   = 4;
-    constexpr int kColNoiseAttack  = 5;
-    constexpr int kColNoiseDecay   = 6;
-    constexpr int kColNoiseSustain = 7;
-    constexpr int kColNoiseRelease = 8;
-    constexpr int kColFiltFreq     = 9;
-    constexpr int kColFiltQ        = 10;
-    constexpr int kColBrightness   = 11;
-
-    constexpr int kColOutput       = 12;
+    // ── Window / layout constants ─────────────────────────────────────────────
+    constexpr int kWinW    = 860;
+    constexpr int kWinH    = 520;
+    constexpr int kHeaderH = 50;
+    constexpr int kRoomH   = 72;
+    constexpr int kSideW   = 195;
+    constexpr int kMainH   = kWinH - kHeaderH - kRoomH;  // 398
+    constexpr int kDrumW   = kWinW - kSideW * 2;         // 470
 }
 
 // =============================================================================
-// SnareLookAndFeel  (unchanged from Phase 1 / 2a)
-// =============================================================================
-
-SnareMakerAudioProcessorEditor::SnareLookAndFeel::SnareLookAndFeel()
-{
-    setColour (juce::Slider::textBoxTextColourId,         kTextMuted);
-    setColour (juce::Slider::textBoxBackgroundColourId,   kBgWindow);
-    setColour (juce::Slider::textBoxOutlineColourId,      juce::Colours::transparentBlack);
-    setColour (juce::Slider::textBoxHighlightColourId,    kPitchBlue);
-    setColour (juce::Label::textColourId,                 kTextBright);
-
-    setColour (juce::PopupMenu::backgroundColourId,            juce::Colour (0xff181828));
-    setColour (juce::PopupMenu::textColourId,                  kTextBright);
-    setColour (juce::PopupMenu::highlightedBackgroundColourId, kPitchBlue);
-    setColour (juce::PopupMenu::highlightedTextColourId,       kTextBright);
-}
-
-void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawLinearSlider (
-    juce::Graphics& g,
-    int x, int y, int width, int height,
-    float sliderPos,
-    float /*minSliderPos*/,
-    float /*maxSliderPos*/,
-    juce::Slider::SliderStyle /*style*/,
-    juce::Slider& slider)
-{
-    constexpr float kTrackW = 6.0f;
-    constexpr float kThumbR = 9.0f;
-
-    const float cx     = (float) x + (float) width * 0.5f;
-    const float top    = (float) y + kThumbR;
-    const float bottom = (float) (y + height) - kThumbR;
-
-    g.setColour (kBgTrack);
-    g.fillRoundedRectangle (cx - kTrackW * 0.5f, top, kTrackW, bottom - top, 3.0f);
-
-    const juce::Colour accent = slider.findColour (juce::Slider::trackColourId);
-    const float        fillH  = bottom - sliderPos;
-    if (fillH > 0.0f)
-    {
-        g.setColour (accent);
-        g.fillRoundedRectangle (cx - kTrackW * 0.5f, sliderPos, kTrackW, fillH, 3.0f);
-    }
-
-    g.setColour (accent.withAlpha (0.22f));
-    g.fillEllipse (cx - kThumbR * 1.7f, sliderPos - kThumbR * 1.7f,
-                   kThumbR * 3.4f, kThumbR * 3.4f);
-
-    g.setColour (juce::Colours::white);
-    g.fillEllipse (cx - kThumbR, sliderPos - kThumbR, kThumbR * 2.0f, kThumbR * 2.0f);
-
-    g.setColour (accent);
-    g.drawEllipse (cx - kThumbR + 1.5f, sliderPos - kThumbR + 1.5f,
-                   (kThumbR - 1.5f) * 2.0f, (kThumbR - 1.5f) * 2.0f, 1.5f);
-}
-
-// =============================================================================
-// Editor – constructor / destructor
+// Constructor / Destructor
 // =============================================================================
 
 SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
         SnareMakerAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p)
 {
-    setLookAndFeel (&lnf);
-
-    // ── Body oscillator sliders (Phase 1 + 2a – unchanged) ───────────────────
-    setupSlider (bodyFreqSlider,    bodyFreqLabel,    "BODY FREQ",   kPitchBlue);
-    setupSlider (pitchAmountSlider, pitchAmountLabel, "PITCH AMT",   kPitchBlue);
-    setupSlider (pitchDecaySlider,  pitchDecayLabel,  "PITCH DECAY", kPitchBlue);
-    setupSlider (phaseOffsetSlider, phaseOffsetLabel, "PHASE OFF",   kPitchBlue);
-
-    // Pitch-curve ComboBox (Phase 2a – unchanged)
-    pitchCurveCombo.addItem ("Exponential", 1);
-    pitchCurveCombo.addItem ("Linear",      2);
-    pitchCurveCombo.addItem ("Logarithmic", 3);
-    pitchCurveCombo.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff252538));
-    pitchCurveCombo.setColour (juce::ComboBox::textColourId,       kTextBright);
-    pitchCurveCombo.setColour (juce::ComboBox::outlineColourId,    kPitchBlue.withAlpha (0.5f));
-    pitchCurveCombo.setColour (juce::ComboBox::arrowColourId,      kPitchBlue);
-    addAndMakeVisible (pitchCurveCombo);
-
-    pitchCurveLabel.setText ("CURVE", juce::dontSendNotification);
-    pitchCurveLabel.setJustificationType (juce::Justification::centredRight);
-    pitchCurveLabel.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
-    pitchCurveLabel.setColour (juce::Label::textColourId, kTextMuted);
-    addAndMakeVisible (pitchCurveLabel);
-
-    // ── Noise sliders (Phase 2b) ──────────────────────────────────────────────
-    setupSlider (noiseLevelSlider,   noiseLevelLabel,   "LEVEL",     kNoiseRed);
-    setupSlider (noiseAttackSlider,  noiseAttackLabel,  "ATTACK",    kNoiseRed);
-    setupSlider (noiseDecaySlider,   noiseDecayLabel,   "DECAY",     kNoiseRed);
-    setupSlider (noiseSustainSlider, noiseSustainLabel, "SUSTAIN",   kNoiseRed);
-    setupSlider (noiseReleaseSlider, noiseReleaseLabel, "RELEASE",   kNoiseRed);
-    setupSlider (noiseFiltFreqSlider,noiseFiltFreqLabel,"FILT FREQ", kNoiseRed);
-    setupSlider (noiseFiltQSlider,   noiseFiltQLabel,   "FILT Q",    kNoiseRed);
-    setupSlider (noiseBrightSlider,  noiseBrightLabel,  "BRIGHT",    kNoiseRed);
-
-    // Noise filter-type ComboBox (Phase 2b)
-    noiseFiltTypeCombo.addItem ("High Pass", 1);
-    noiseFiltTypeCombo.addItem ("Band Pass", 2);
-    noiseFiltTypeCombo.addItem ("Low Pass",  3);
-    noiseFiltTypeCombo.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff252538));
-    noiseFiltTypeCombo.setColour (juce::ComboBox::textColourId,       kTextBright);
-    noiseFiltTypeCombo.setColour (juce::ComboBox::outlineColourId,    kNoiseRed.withAlpha (0.5f));
-    noiseFiltTypeCombo.setColour (juce::ComboBox::arrowColourId,      kNoiseRed);
-    addAndMakeVisible (noiseFiltTypeCombo);
-
-    noiseFiltTypeLabel.setText ("FILTER", juce::dontSendNotification);
-    noiseFiltTypeLabel.setJustificationType (juce::Justification::centredRight);
-    noiseFiltTypeLabel.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
-    noiseFiltTypeLabel.setColour (juce::Label::textColourId, kTextMuted);
-    addAndMakeVisible (noiseFiltTypeLabel);
-
-    // ── Output slider ─────────────────────────────────────────────────────────
-    setupSlider (outputGainSlider, outputGainLabel, "OUTPUT GAIN", kOutTeal);
-
-    // ── APVTS attachments ─────────────────────────────────────────────────────
-    auto& apvts = audioProcessor.apvts;
-
-    bodyFreqAttachment      = std::make_unique<Attachment>      (apvts, "bodyFreq",     bodyFreqSlider);
-    pitchAmountAttachment   = std::make_unique<Attachment>      (apvts, "pitchAmount",  pitchAmountSlider);
-    pitchDecayAttachment    = std::make_unique<Attachment>      (apvts, "pitchDecay",   pitchDecaySlider);
-    phaseOffsetAttachment   = std::make_unique<Attachment>      (apvts, "phaseOffset",  phaseOffsetSlider);
-    pitchCurveAttachment    = std::make_unique<ComboAttachment> (apvts, "pitchCurve",   pitchCurveCombo);
-
-    noiseLevelAttachment    = std::make_unique<Attachment>      (apvts, "noiseLevel",   noiseLevelSlider);
-    noiseAttackAttachment   = std::make_unique<Attachment>      (apvts, "noiseAttack",  noiseAttackSlider);
-    noiseDecayAttachment    = std::make_unique<Attachment>      (apvts, "noiseDecay",   noiseDecaySlider);
-    noiseSustainAttachment  = std::make_unique<Attachment>      (apvts, "noiseSustain", noiseSustainSlider);
-    noiseReleaseAttachment  = std::make_unique<Attachment>      (apvts, "noiseRelease", noiseReleaseSlider);
-    noiseFiltTypeAttachment = std::make_unique<ComboAttachment> (apvts, "noiseFiltType",noiseFiltTypeCombo);
-    noiseFiltFreqAttachment = std::make_unique<Attachment>      (apvts, "noiseFiltFreq",noiseFiltFreqSlider);
-    noiseFiltQAttachment    = std::make_unique<Attachment>      (apvts, "noiseFiltQ",   noiseFiltQSlider);
-    noiseBrightAttachment   = std::make_unique<Attachment>      (apvts, "noiseBright",  noiseBrightSlider);
-
-    outputGainAttachment    = std::make_unique<Attachment>      (apvts, "outputGain",   outputGainSlider);
-
-    // 13 columns × 100 px wide, 400 px tall
-    setSize (1300, 400);
+    setSize (kWinW, kWinH);
 }
 
-SnareMakerAudioProcessorEditor::~SnareMakerAudioProcessorEditor()
+SnareMakerAudioProcessorEditor::~SnareMakerAudioProcessorEditor() = default;
+
+// =============================================================================
+// resized
+// =============================================================================
+
+void SnareMakerAudioProcessorEditor::resized()
 {
-    setLookAndFeel (nullptr);
+    const int mainTop = kHeaderH;
+    const int roomTop = kWinH - kRoomH;
+
+    bodyZoneBounds  = { 0,              mainTop, kSideW,  kMainH };
+    drumAreaBounds  = { kSideW,         mainTop, kDrumW,  kMainH };
+    noiseZoneBounds = { kSideW + kDrumW, mainTop, kSideW, kMainH };
+    roomZoneBounds  = { 0,              roomTop, kWinW,   kRoomH };
 }
 
 // =============================================================================
-// setupSlider  (unchanged helper)
+// Zone hit-test
 // =============================================================================
 
-void SnareMakerAudioProcessorEditor::setupSlider (juce::Slider&       slider,
-                                                   juce::Label&        label,
-                                                   const juce::String& labelText,
-                                                   juce::Colour        accent)
+SnareMakerAudioProcessorEditor::Zone
+SnareMakerAudioProcessorEditor::zoneAt (juce::Point<int> pos) const noexcept
 {
-    slider.setSliderStyle (juce::Slider::LinearVertical);
-    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 74, 18);
-    slider.setColour (juce::Slider::trackColourId, accent);
-    addAndMakeVisible (slider);
+    if (bodyZoneBounds.contains  (pos)) return Zone::Body;
+    if (noiseZoneBounds.contains (pos)) return Zone::Noise;
+    if (roomZoneBounds.contains  (pos)) return Zone::Room;
+    return Zone::None;
+}
 
-    label.setText (labelText, juce::dontSendNotification);
-    label.setJustificationType (juce::Justification::centred);
-    label.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
-    label.setColour (juce::Label::textColourId, kTextMuted);
-    addAndMakeVisible (label);
+// =============================================================================
+// Mouse events
+// =============================================================================
+
+void SnareMakerAudioProcessorEditor::mouseMove (const juce::MouseEvent& e)
+{
+    const Zone z = zoneAt (e.getPosition());
+    if (z != hoveredZone) { hoveredZone = z; repaint(); }
+}
+
+void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
+{
+    const Zone z = zoneAt (e.getPosition());
+    if (z != Zone::None && z != activeZone) { activeZone = z; repaint(); }
+}
+
+void SnareMakerAudioProcessorEditor::mouseExit (const juce::MouseEvent&)
+{
+    if (hoveredZone != Zone::None) { hoveredZone = Zone::None; repaint(); }
 }
 
 // =============================================================================
@@ -228,105 +99,313 @@ void SnareMakerAudioProcessorEditor::setupSlider (juce::Slider&       slider,
 
 void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    const int w = getWidth();
-    const int h = getHeight();
-
     g.fillAll (kBgWindow);
 
-    // Title bar
-    g.setColour (kBgTitleBar);
-    g.fillRect (0, 0, w, 44);
-    g.setColour (kTextBright);
-    g.setFont (juce::Font (juce::FontOptions{}.withHeight (20.0f).withStyle ("Bold")));
-    g.drawText ("SNARE MAKER", 0, 0, w, 44, juce::Justification::centred, false);
+    paintHeader (g);
 
-    // ── Section panels ────────────────────────────────────────────────────────
-    // Panel x = firstCol * kColW + 4
-    // Panel w = numCols  * kColW - 8
-    const float panelY = (float) kPanelY;
-    const float panelH = (float) (h - kPanelY - 4);
+    paintZone (g, bodyZoneBounds,  Zone::Body,  "BODY",
+               kPitchBlue,
+               { "Body Freq", "Pitch Amount", "Pitch Decay",
+                 "Phase Offset", "Pitch Curve" });
 
-    g.setColour (kBgPanel);
-    // Pitch  (cols 0-3)
-    g.fillRoundedRectangle (  4.0f, panelY, 392.0f, panelH, 6.0f);
-    // Noise  (cols 4-11)
-    g.fillRoundedRectangle (404.0f, panelY, 792.0f, panelH, 6.0f);
-    // Output (col 12)
-    g.fillRoundedRectangle (1204.0f, panelY, 92.0f, panelH, 6.0f);
+    paintZone (g, noiseZoneBounds, Zone::Noise, "NOISE",
+               kNoiseRed,
+               { "Level", "Attack  ·  Decay",
+                 "Sustain  ·  Release",
+                 "Filter Type  ·  Freq  ·  Q",
+                 "Brightness" });
 
-    // ── Section header text ───────────────────────────────────────────────────
-    constexpr int hdrY = kPanelY + 5;
-    constexpr int hdrH = 14;
-    g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
+    paintZone (g, roomZoneBounds,  Zone::Room,  "ROOM",
+               kRoomPurple,
+               { "Reverb  ·  Pre-Delay  ·  Size  ·  Damping" });
 
-    g.setColour (kPitchBlue);
-    g.drawText ("PITCH",  4,    hdrY, 392, hdrH, juce::Justification::centred, false);
-
-    g.setColour (kNoiseRed);
-    g.drawText ("NOISE",  404,  hdrY, 792, hdrH, juce::Justification::centred, false);
-
-    g.setColour (kOutTeal);
-    g.drawText ("OUTPUT", 1204, hdrY,  92, hdrH, juce::Justification::centred, false);
-
-    // ── Noise sub-section dividers (light vertical lines) ─────────────────────
-    // Separates: ADSR | FILTER | BRIGHT
-    g.setColour (kBgTrack);
-    const float divTop = (float)(kPanelY + 20);
-    const float divBot = panelY + panelH - 4.0f;
-
-    // After RELEASE (end of col 8 = x 900)
-    g.fillRect (900.0f, divTop, 1.0f, divBot - divTop);
-    // After FILT Q (end of col 10 = x 1100)
-    g.fillRect (1100.0f, divTop, 1.0f, divBot - divTop);
+    paintDrumArea (g, drumAreaBounds);
 }
 
 // =============================================================================
-// resized
+// paintHeader
 // =============================================================================
 
-void SnareMakerAudioProcessorEditor::resized()
+void SnareMakerAudioProcessorEditor::paintHeader (juce::Graphics& g) const
 {
-    // ── Helper: place one slider + its label into a column ────────────────────
-    auto placeColumn = [&] (juce::Slider& slider, juce::Label& label, int col)
+    const int w = getWidth();
+
+    juce::ColourGradient hGrad (
+        juce::Colour (0xff0a0a1e), 0.0f, 0.0f,
+        juce::Colour (0xff14142c), 0.0f, (float) kHeaderH,
+        false);
+    g.setGradientFill (hGrad);
+    g.fillRect (0, 0, w, kHeaderH);
+
+    // Bottom separator
+    g.setColour (kDivider);
+    g.fillRect (0, kHeaderH - 1, w, 1);
+
+    // Plugin name
+    g.setColour (kTextBright);
+    g.setFont (juce::Font (juce::FontOptions{}.withHeight (22.0f).withStyle ("Bold")));
+    g.drawText ("SNARE MAKER", 0, 2, w, 30, juce::Justification::centred, false);
+
+    // Tagline
+    g.setColour (kTextDim);
+    g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.0f)));
+    g.drawText ("PERCUSSIVE SYNTHESIZER", 0, 31, w, 13,
+                juce::Justification::centred, false);
+}
+
+// =============================================================================
+// paintZone  –  reusable for Body, Noise, Room
+// =============================================================================
+
+void SnareMakerAudioProcessorEditor::paintZone (
+    juce::Graphics&          g,
+    juce::Rectangle<int>     bounds,
+    Zone                     zone,
+    const juce::String&      title,
+    juce::Colour             accent,
+    const juce::StringArray& hints) const
+{
+    const bool isHovered = (hoveredZone == zone);
+    const bool isActive  = (activeZone  == zone);
+    const bool isRoom    = (zone == Zone::Room);
+
+    // ── Background ────────────────────────────────────────────────────────────
+    g.setColour (isActive ? kBgZoneAct : isHovered ? kBgZoneHov : kBgZone);
+    g.fillRoundedRectangle (bounds.toFloat().reduced (2.0f), 6.0f);
+
+    // ── Accent border line ────────────────────────────────────────────────────
+    const float borderAlpha = isActive ? 0.90f : isHovered ? 0.50f : 0.18f;
+    g.setColour (accent.withAlpha (borderAlpha));
+
+    if (isRoom)
     {
-        const int x  = col * kColW + kPadX;
-        const int cw = kColW - kPadX * 2;
-        label .setBounds (x, kTopY,           cw, kLabelH);
-        slider.setBounds (x, kTopY + kLabelH, cw, kSliderH);
-    };
+        // Top line for the room zone
+        g.fillRect ((float) bounds.getX() + 2.0f,
+                    (float) bounds.getY() + 2.0f,
+                    (float) bounds.getWidth() - 4.0f, 2.0f);
+    }
+    else
+    {
+        // Left accent bar for the side zones
+        g.fillRoundedRectangle ((float) bounds.getX() + 2.0f,
+                                (float) bounds.getY() + 2.0f,
+                                3.0f,
+                                (float) bounds.getHeight() - 4.0f,
+                                1.5f);
+    }
 
-    // ── Pitch panel (Phase 2a – unchanged) ───────────────────────────────────
-    constexpr int comboLabelW = 52;
-    pitchCurveLabel.setBounds (kPadX, kComboY, comboLabelW, kComboH);
-    pitchCurveCombo.setBounds (kPadX + comboLabelW + 4, kComboY,
-                               4 * kColW - kPadX * 2 - comboLabelW - 4, kComboH);
+    // ── Title ─────────────────────────────────────────────────────────────────
+    const float titleAlpha = isActive ? 1.0f : isHovered ? 0.80f : 0.50f;
+    g.setColour (accent.withAlpha (titleAlpha));
+    g.setFont (juce::Font (juce::FontOptions{}.withHeight (11.0f).withStyle ("Bold")));
 
-    placeColumn (bodyFreqSlider,    bodyFreqLabel,    kColBodyFreq);
-    placeColumn (pitchAmountSlider, pitchAmountLabel, kColPitchAmount);
-    placeColumn (pitchDecaySlider,  pitchDecayLabel,  kColPitchDecay);
-    placeColumn (phaseOffsetSlider, phaseOffsetLabel, kColPhaseOffset);
+    if (isRoom)
+        g.drawText (title, bounds.getX() + 14, bounds.getY() + 10,
+                    70, 14, juce::Justification::centredLeft, false);
+    else
+        g.drawText (title, bounds.getX() + 10, bounds.getY() + 14,
+                    bounds.getWidth() - 14, 14, juce::Justification::centred, false);
 
-    // ── Noise panel ───────────────────────────────────────────────────────────
+    // ── Hint labels ───────────────────────────────────────────────────────────
+    g.setColour (isActive ? kTextMuted : kTextDim);
+    g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.5f)));
 
-    // Filter-type ComboBox sits in the header row of the filter sub-section
-    // (cols 9-10), mirroring the style of the pitchCurve combo.
-    const int filtSectionX = kColFiltFreq * kColW;                // = 900
-    const int filtSectionW = 2 * kColW;                           // = 200
-    noiseFiltTypeLabel.setBounds (filtSectionX + kPadX, kComboY,
-                                  comboLabelW, kComboH);
-    noiseFiltTypeCombo.setBounds (filtSectionX + kPadX + comboLabelW + 4, kComboY,
-                                  filtSectionW - kPadX * 2 - comboLabelW - 4, kComboH);
+    if (isRoom)
+    {
+        g.drawText (hints[0], bounds.getX() + 96, bounds.getY() + 10,
+                    bounds.getWidth() - 110, 14,
+                    juce::Justification::centredLeft, false);
+    }
+    else
+    {
+        const int hintStartY = bounds.getY() + 40;
+        for (int i = 0; i < hints.size(); ++i)
+            g.drawText (hints[i],
+                        bounds.getX() + 8, hintStartY + i * 22,
+                        bounds.getWidth() - 16, 16,
+                        juce::Justification::centred, false);
+    }
 
-    // Noise sliders
-    placeColumn (noiseLevelSlider,    noiseLevelLabel,    kColNoiseLevel);
-    placeColumn (noiseAttackSlider,   noiseAttackLabel,   kColNoiseAttack);
-    placeColumn (noiseDecaySlider,    noiseDecayLabel,    kColNoiseDecay);
-    placeColumn (noiseSustainSlider,  noiseSustainLabel,  kColNoiseSustain);
-    placeColumn (noiseReleaseSlider,  noiseReleaseLabel,  kColNoiseRelease);
-    placeColumn (noiseFiltFreqSlider, noiseFiltFreqLabel, kColFiltFreq);
-    placeColumn (noiseFiltQSlider,    noiseFiltQLabel,    kColFiltQ);
-    placeColumn (noiseBrightSlider,   noiseBrightLabel,   kColBrightness);
+    // ── "Click to expand" footer hint ─────────────────────────────────────────
+    if (!isActive)
+    {
+        const float hintAlpha = isHovered ? 0.45f : 0.18f;
+        g.setColour (accent.withAlpha (hintAlpha));
+        g.setFont (juce::Font (juce::FontOptions{}.withHeight (8.5f)));
 
-    // ── Output panel ──────────────────────────────────────────────────────────
-    placeColumn (outputGainSlider, outputGainLabel, kColOutput);
+        if (isRoom)
+            g.drawText ("CLICK TO EXPAND",
+                        bounds.getRight() - 120, bounds.getY() + 10,
+                        110, 14, juce::Justification::centredRight, false);
+        else
+            g.drawText ("CLICK TO EXPAND",
+                        bounds.getX() + 8, bounds.getBottom() - 20,
+                        bounds.getWidth() - 16, 14,
+                        juce::Justification::centred, false);
+    }
+}
+
+// =============================================================================
+// paintDrumArea  –  background, glow, dividers, drum, footer
+// =============================================================================
+
+void SnareMakerAudioProcessorEditor::paintDrumArea (
+    juce::Graphics& g, juce::Rectangle<int> area) const
+{
+    // Background
+    g.setColour (kBgDrum);
+    g.fillRect (area);
+
+    // Radial glow behind drum
+    const float cx = (float) area.getCentreX();
+    const float cy = (float) area.getCentreY();
+    juce::ColourGradient glow (
+        juce::Colour (0xff1a1a32), cx, cy,
+        kBgDrum,                   cx + 200.0f, cy,
+        true);
+    g.setGradientFill (glow);
+    g.fillRect (area);
+
+    // Vertical edge dividers
+    g.setColour (kDivider);
+    g.fillRect (area.getX(),         area.getY(), 1, area.getHeight());
+    g.fillRect (area.getRight() - 1, area.getY(), 1, area.getHeight());
+
+    paintSnareDrum (g, area);
+
+    // Footer instruction
+    g.setColour (kTextDim);
+    g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.0f)));
+    g.drawText ("CLICK A ZONE TO EDIT PARAMETERS",
+                area.getX(), area.getBottom() - 18,
+                area.getWidth(), 14, juce::Justification::centred, false);
+}
+
+// =============================================================================
+// paintSnareDrum  –  stylised top-view snare illustration
+// =============================================================================
+
+void SnareMakerAudioProcessorEditor::paintSnareDrum (
+    juce::Graphics& g, juce::Rectangle<int> area) const
+{
+    // ── Geometry (scales with area width, capped for consistency) ─────────────
+    const float cx     = (float) area.getCentreX();
+    const float cy     = (float) area.getY() + (float) area.getHeight() * 0.43f;
+    const float headRx = std::min ((float) area.getWidth() * 0.40f, 145.0f);
+    const float headRy = headRx * 0.28f;   // perspective flattening
+    const float shellH = headRx * 0.42f;   // snare drum is shallower than a tom
+    const float rimExt = 5.0f;             // rim extends beyond head
+
+    // ── 1. Shell body ─────────────────────────────────────────────────────────
+    {
+        juce::ColourGradient sg (
+            juce::Colour (0xff272742), cx - headRx, cy,
+            juce::Colour (0xff181830), cx + headRx, cy,
+            false);
+        g.setGradientFill (sg);
+        g.fillRect (cx - headRx, cy, headRx * 2.0f, shellH);
+
+        // Edge highlights
+        g.setColour (juce::Colour (0xff353552));
+        g.fillRect (cx - headRx,        cy, 2.0f, shellH);
+        g.fillRect (cx + headRx - 2.0f, cy, 2.0f, shellH);
+    }
+
+    // ── 2. Lug casings  (4 on each side, evenly distributed) ─────────────────
+    {
+        const float lugW = 7.0f;
+        const float lugH = 14.0f;
+        const float gap  = (shellH - lugH * 4.0f) / 5.0f;
+
+        for (int i = 0; i < 4; ++i)
+        {
+            const float ly = cy + gap + i * (lugH + gap);
+
+            // Casing body
+            g.setColour (juce::Colour (0xff303050));
+            g.fillRoundedRectangle (cx - headRx - lugW + 1.5f, ly, lugW, lugH, 2.0f);
+            g.fillRoundedRectangle (cx + headRx - 1.5f,        ly, lugW, lugH, 2.0f);
+
+            // Tension rod screw heads
+            g.setColour (juce::Colour (0xff5c5c78));
+            g.fillEllipse (cx - headRx - lugW + 2.5f, ly + 1.5f, 3.0f, 3.0f);
+            g.fillEllipse (cx + headRx + 0.5f,        ly + 1.5f, 3.0f, 3.0f);
+        }
+    }
+
+    // ── 3. Snare-side (bottom) half-ellipse ───────────────────────────────────
+    {
+        g.setColour (juce::Colour (0xff141428));
+        g.fillEllipse (cx - headRx, cy + shellH - headRy,
+                       headRx * 2.0f, headRy * 2.0f);
+
+        // Snare wire coils (seven thin lines)
+        g.setColour (juce::Colour (0x55aaaacc));
+        const float span   = headRx * 0.56f;
+        const float wTop   = cy + shellH - headRy * 0.5f;
+        const float wBot   = cy + shellH + headRy * 0.6f;
+        for (int i = 0; i < 7; ++i)
+        {
+            const float wx = cx - span + (float) i * (span * 2.0f / 6.0f);
+            g.drawLine (wx, wTop, wx, wBot, 0.9f);
+        }
+    }
+
+    // ── 4. Bottom rim ─────────────────────────────────────────────────────────
+    g.setColour (juce::Colour (0xff787890));
+    g.drawEllipse (cx - headRx - rimExt,
+                   cy + shellH - headRy - rimExt * 0.35f,
+                   (headRx + rimExt) * 2.0f,
+                   (headRy + rimExt * 0.35f) * 2.0f,
+                   2.5f);
+
+    // ── 5. Top drum head  (coated mylar gradient) ─────────────────────────────
+    {
+        juce::ColourGradient headGrad (
+            juce::Colour (0xffe2e2ec), cx, cy,
+            juce::Colour (0xff888898), cx + headRx * 0.88f, cy + headRy * 0.78f,
+            true);
+        g.setGradientFill (headGrad);
+        g.fillEllipse (cx - headRx, cy - headRy, headRx * 2.0f, headRy * 2.0f);
+
+        // Subtle centre target ring (common on coated heads)
+        g.setColour (juce::Colour (0x20000000));
+        g.drawEllipse (cx - headRx * 0.32f, cy - headRy * 0.32f,
+                       headRx * 0.64f, headRy * 0.64f, 0.8f);
+    }
+
+    // ── 6. Top rim ────────────────────────────────────────────────────────────
+    // Main rim
+    g.setColour (juce::Colour (0xff8888a0));
+    g.drawEllipse (cx - headRx - rimExt,
+                   cy - headRy - rimExt * 0.35f,
+                   (headRx + rimExt) * 2.0f,
+                   (headRy + rimExt * 0.35f) * 2.0f,
+                   3.0f);
+
+    // Rim highlight (top arc, slightly brighter to sell the 3-D feel)
+    g.setColour (juce::Colour (0xffb8b8cc));
+    g.drawEllipse (cx - headRx - rimExt,
+                   cy - headRy - rimExt * 0.35f,
+                   (headRx + rimExt) * 2.0f,
+                   (headRy + rimExt * 0.35f) * 2.0f,
+                   1.0f);
+
+    // ── 7. Snare strainer lever  (right side of shell) ────────────────────────
+    {
+        const float sx = cx + headRx + rimExt + 5.0f;
+        const float sy = cy + shellH * 0.36f;
+
+        // Strainer body
+        g.setColour (juce::Colour (0xff3a3a54));
+        g.fillRoundedRectangle (sx, sy, 18.0f, 9.0f, 3.0f);
+
+        // Lever arm (vertical toggle)
+        g.setColour (juce::Colour (0xff606078));
+        g.fillRoundedRectangle (sx + 13.0f, sy - 5.0f, 6.0f, 19.0f, 2.0f);
+
+        // Screw detail
+        g.setColour (juce::Colour (0xff5a5a70));
+        g.fillEllipse (sx + 2.5f, sy + 2.0f, 5.0f, 5.0f);
+    }
 }
