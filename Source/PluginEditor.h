@@ -57,13 +57,17 @@ private:
     SnareMakerAudioProcessor& audioProcessor;
     SnareLookAndFeel           lnf;
 
-    // Phase 3a-2a: first Body control
+    // Phase 3a-2a/b: Body controls
     juce::Slider bodyFreqSlider;
     juce::Label  bodyFreqLabel;
 
-    // APVTS attachment (destroyed before slider)
+    juce::Slider phaseOffsetSlider;
+    juce::Label  phaseOffsetLabel;
+
+    // APVTS attachments (destroyed before sliders)
     using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     std::unique_ptr<Attachment> bodyFreqAttachment;
+    std::unique_ptr<Attachment> phaseOffsetAttachment;
 
     // ── Paint helpers ─────────────────────────────────────────────────────────
     Zone zoneAt (juce::Point<int> pos) const noexcept;

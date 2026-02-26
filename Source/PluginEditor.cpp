@@ -109,11 +109,14 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
 {
     setLookAndFeel (&lnf);
 
-    // Body zone – first slider
-    setupSlider (bodyFreqSlider, bodyFreqLabel, "BODY FREQ", kPitchBlue);
+    // Body zone – sliders
+    setupSlider (bodyFreqSlider,    bodyFreqLabel,    "BODY FREQ",  kPitchBlue);
+    setupSlider (phaseOffsetSlider, phaseOffsetLabel, "PHASE OFF",  kPitchBlue);
 
-    bodyFreqAttachment = std::make_unique<Attachment> (
-        audioProcessor.apvts, "bodyFreq", bodyFreqSlider);
+    bodyFreqAttachment    = std::make_unique<Attachment> (
+        audioProcessor.apvts, "bodyFreq",    bodyFreqSlider);
+    phaseOffsetAttachment = std::make_unique<Attachment> (
+        audioProcessor.apvts, "phaseOffset", phaseOffsetSlider);
 
     setSize (kWinW, kWinH);
 }
@@ -159,16 +162,27 @@ void SnareMakerAudioProcessorEditor::resized()
     noiseZoneBounds = { kSideW + kDrumW, mainTop, kSideW,  kMainH };
     roomZoneBounds  = { 0,               roomTop, kWinW,   kRoomH };
 
-    // ── bodyFreq slider: centred horizontally in Body zone ────────────────────
+    // ── Body zone: two columns side-by-side ───────────────────────────────────
     //   Zone:  x=0, y=50, w=195, h=398
-    //   Label above slider; both centred at zone mid-x (97)
-    const int sliderX = bodyZoneBounds.getCentreX() - kSliderW / 2;   // 67
-    const int labelY  = bodyZoneBounds.getY() + 36;                    // 86
-    const int sliderY = labelY + kLabelH;                              // 104
+    //   Split into two equal columns (97 px each).
+    //   Slider centred within each column; label spans the full column width.
+    //
+    //   colW = 97   sliderPad = (97-60)/2 = 18
+    //   Col 0 (bodyFreq):    label x=0,  slider x=18
+    //   Col 1 (phaseOffset): label x=97, slider x=115
+    {
+        const int zx     = bodyZoneBounds.getX();   // 0
+        const int labelY = bodyZoneBounds.getY() + 36;  // 86
+        const int sliderY = labelY + kLabelH;           // 104
+        const int colW   = bodyZoneBounds.getWidth() / 2;  // 97
+        const int pad    = (colW - kSliderW) / 2;          // 18
 
-    bodyFreqLabel .setBounds (bodyZoneBounds.getX() + 8, labelY,
-                              bodyZoneBounds.getWidth() - 16, kLabelH);
-    bodyFreqSlider.setBounds (sliderX, sliderY, kSliderW, kSliderH);
+        bodyFreqLabel   .setBounds (zx,            labelY, colW, kLabelH);
+        bodyFreqSlider  .setBounds (zx + pad,      sliderY, kSliderW, kSliderH);
+
+        phaseOffsetLabel .setBounds (zx + colW,    labelY, colW, kLabelH);
+        phaseOffsetSlider.setBounds (zx + colW + pad, sliderY, kSliderW, kSliderH);
+    }
 }
 
 // =============================================================================
