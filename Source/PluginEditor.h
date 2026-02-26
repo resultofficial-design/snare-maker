@@ -3,17 +3,30 @@
 #include "PluginProcessor.h"
 
 // =============================================================================
-// SnareMakerAudioProcessorEditor  –  Phase 3a-2a
+// SnareMakerAudioProcessorEditor  –  Phase 3a-2 (complete)
 //
-// Phase 3a-1 layout (860 × 520 px, 3 zones + drum visual) is preserved.
-// Phase 3a-2a adds the first real control: bodyFreq LinearVertical slider
-// with an APVTS attachment, placed inside the Body zone.
+// Window layout (960 × 520 px):
 //
-// Member declaration order (JUCE lifetime rules):
-//   1. audioProcessor ref  – must come before lnf
-//   2. lnf                 – constructed before sliders, destroyed after them
-//   3. slider + label      – components
-//   4. attachment          – destroyed first (before slider)
+//  ┌──────────────────────────────────────────────────────────────────┐
+//  │  HEADER  (plugin name + tagline)                          50 px │
+//  ├──────────┬──────────────────────────┬────────────┬─────────────┤
+//  │          │                          │            │             │
+//  │  BODY    │    SNARE DRUM VISUAL     │   NOISE    │   OUTPUT   │
+//  │  195 px  │        470 px            │   200 px   │    95 px   │
+//  │          │                          │            │             │  398 px
+//  ├──────────┴──────────────────────────┴────────────┴─────────────┤
+//  │  ROOM / SPACE ZONE  (full width 960 px)                  72 px │
+//  └──────────────────────────────────────────────────────────────────┘
+//
+// Body zone  (195 px, 2 cols × 2 rows + pitchCurve combo in header):
+//   Col 0: bodyFreq (row 1), pitchAmount (row 2)
+//   Col 1: phaseOffset (row 1), pitchDecay (row 2)
+//
+// Noise zone (200 px, 2 cols × 4 rows + noiseFiltType combo in header):
+//   Col 0: noiseLevel · noiseDecay · noiseRelease · noiseFiltQ
+//   Col 1: noiseAttack · noiseSustain · noiseFiltFreq · noiseBright
+//
+// Output strip (95 px): outputGain
 // =============================================================================
 
 class SnareMakerAudioProcessorEditor : public juce::AudioProcessorEditor
@@ -42,8 +55,8 @@ private:
                                juce::Slider&) override;
     };
 
-    // ── Zone enum & state ─────────────────────────────────────────────────────
-    enum class Zone { None, Body, Noise, Room };
+    // ── Zone identifiers ─────────────────────────────────────────────────────
+    enum class Zone { None, Body, Noise, Output, Room };
     Zone hoveredZone { Zone::None };
     Zone activeZone  { Zone::Body };
 
@@ -51,56 +64,62 @@ private:
     juce::Rectangle<int> bodyZoneBounds;
     juce::Rectangle<int> drumAreaBounds;
     juce::Rectangle<int> noiseZoneBounds;
+    juce::Rectangle<int> outputZoneBounds;
     juce::Rectangle<int> roomZoneBounds;
 
     // ── Lifetime-ordered members ──────────────────────────────────────────────
+    //    audioProcessor ref first, lnf before all child components,
+    //    attachments last (destroyed first).
     SnareMakerAudioProcessor& audioProcessor;
     SnareLookAndFeel           lnf;
 
-    // Phase 3a-2a/b: Body controls
-    juce::Slider bodyFreqSlider;
-    juce::Label  bodyFreqLabel;
+    // ── Body controls ─────────────────────────────────────────────────────────
+    juce::Slider   bodyFreqSlider;      juce::Label bodyFreqLabel;
+    juce::Slider   phaseOffsetSlider;   juce::Label phaseOffsetLabel;
+    juce::Slider   pitchAmountSlider;   juce::Label pitchAmountLabel;
+    juce::Slider   pitchDecaySlider;    juce::Label pitchDecayLabel;
+    juce::ComboBox pitchCurveCombo;     juce::Label pitchCurveLabel;
 
-    juce::Slider phaseOffsetSlider;
-    juce::Label  phaseOffsetLabel;
+    // ── Noise controls ────────────────────────────────────────────────────────
+    juce::Slider   noiseLevelSlider;    juce::Label noiseLevelLabel;
+    juce::Slider   noiseAttackSlider;   juce::Label noiseAttackLabel;
+    juce::Slider   noiseDecaySlider;    juce::Label noiseDecayLabel;
+    juce::Slider   noiseSustainSlider;  juce::Label noiseSustainLabel;
+    juce::Slider   noiseReleaseSlider;  juce::Label noiseReleaseLabel;
+    juce::Slider   noiseFiltFreqSlider; juce::Label noiseFiltFreqLabel;
+    juce::Slider   noiseFiltQSlider;    juce::Label noiseFiltQLabel;
+    juce::Slider   noiseBrightSlider;   juce::Label noiseBrightLabel;
+    juce::ComboBox noiseFiltTypeCombo;  juce::Label noiseFiltTypeLabel;
 
-    // Phase 3a-2c: Noise ADSR controls
-    juce::Slider noiseAttackSlider;
-    juce::Label  noiseAttackLabel;
+    // ── Output controls ───────────────────────────────────────────────────────
+    juce::Slider   outputGainSlider;    juce::Label outputGainLabel;
 
-    juce::Slider noiseDecaySlider;
-    juce::Label  noiseDecayLabel;
+    // ── APVTS attachments (declared last → destroyed first) ───────────────────
+    using SA = juce::AudioProcessorValueTreeState::SliderAttachment;
+    using CA = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
 
-    juce::Slider noiseSustainSlider;
-    juce::Label  noiseSustainLabel;
+    std::unique_ptr<SA> bodyFreqAttachment;
+    std::unique_ptr<SA> phaseOffsetAttachment;
+    std::unique_ptr<SA> pitchAmountAttachment;
+    std::unique_ptr<SA> pitchDecayAttachment;
+    std::unique_ptr<CA> pitchCurveAttachment;
 
-    juce::Slider noiseReleaseSlider;
-    juce::Label  noiseReleaseLabel;
+    std::unique_ptr<SA> noiseLevelAttachment;
+    std::unique_ptr<SA> noiseAttackAttachment;
+    std::unique_ptr<SA> noiseDecayAttachment;
+    std::unique_ptr<SA> noiseSustainAttachment;
+    std::unique_ptr<SA> noiseReleaseAttachment;
+    std::unique_ptr<SA> noiseFiltFreqAttachment;
+    std::unique_ptr<SA> noiseFiltQAttachment;
+    std::unique_ptr<SA> noiseBrightAttachment;
+    std::unique_ptr<CA> noiseFiltTypeAttachment;
 
-    // Phase 3a-2d: Noise filter freq + tilt EQ brightness
-    juce::Slider noiseFiltFreqSlider;
-    juce::Label  noiseFiltFreqLabel;
+    std::unique_ptr<SA> outputGainAttachment;
 
-    juce::Slider noiseBrightSlider;
-    juce::Label  noiseBrightLabel;
-
-    // APVTS attachments (destroyed before sliders)
-    using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
-    std::unique_ptr<Attachment> bodyFreqAttachment;
-    std::unique_ptr<Attachment> phaseOffsetAttachment;
-    std::unique_ptr<Attachment> noiseAttackAttachment;
-    std::unique_ptr<Attachment> noiseDecayAttachment;
-    std::unique_ptr<Attachment> noiseSustainAttachment;
-    std::unique_ptr<Attachment> noiseReleaseAttachment;
-    std::unique_ptr<Attachment> noiseFiltFreqAttachment;
-    std::unique_ptr<Attachment> noiseBrightAttachment;
-
-    // ── Paint helpers ─────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
     Zone zoneAt (juce::Point<int> pos) const noexcept;
 
     void paintHeader   (juce::Graphics&) const;
-
-    // hasControls = true → skip hint labels and "click to expand" text
     void paintZone     (juce::Graphics&,
                         juce::Rectangle<int>     bounds,
                         Zone                     zone,
@@ -108,11 +127,12 @@ private:
                         juce::Colour             accent,
                         const juce::StringArray& hints,
                         bool                     hasControls = false) const;
-
     void paintDrumArea  (juce::Graphics&, juce::Rectangle<int> area) const;
     void paintSnareDrum (juce::Graphics&, juce::Rectangle<int> area) const;
 
     void setupSlider (juce::Slider&, juce::Label&,
+                      const juce::String& labelText, juce::Colour accent);
+    void setupCombo  (juce::ComboBox&, juce::Label&,
                       const juce::String& labelText, juce::Colour accent);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SnareMakerAudioProcessorEditor)
