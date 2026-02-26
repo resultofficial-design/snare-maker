@@ -3,23 +3,17 @@
 #include "PluginProcessor.h"
 
 // =============================================================================
-// SnareMakerAudioProcessorEditor  –  Phase 3a-1: Basic UI Layout
+// SnareMakerAudioProcessorEditor  –  Phase 3a-2a
 //
-// Window layout (860 × 520 px):
+// Phase 3a-1 layout (860 × 520 px, 3 zones + drum visual) is preserved.
+// Phase 3a-2a adds the first real control: bodyFreq LinearVertical slider
+// with an APVTS attachment, placed inside the Body zone.
 //
-//  ┌──────────────────────────────────────────────────────────┐
-//  │  HEADER  (plugin name + tagline)                   50 px │
-//  ├─────────────┬──────────────────────────┬─────────────────┤
-//  │             │                          │                 │
-//  │  BODY ZONE  │    SNARE DRUM VISUAL     │  NOISE ZONE     │
-//  │   195 px    │        470 px            │   195 px        │
-//  │             │                          │                 │  398 px
-//  ├─────────────┴──────────────────────────┴─────────────────┤
-//  │  ROOM / SPACE ZONE  (full width)                   72 px │
-//  └──────────────────────────────────────────────────────────┘
-//
-// Clicking a zone activates it (accent border + brighter hints).
-// Sliders/knobs are added in Phase 3a-2 and later.
+// Member declaration order (JUCE lifetime rules):
+//   1. audioProcessor ref  – must come before lnf
+//   2. lnf                 – constructed before sliders, destroyed after them
+//   3. slider + label      – components
+//   4. attachment          – destroyed first (before slider)
 // =============================================================================
 
 class SnareMakerAudioProcessorEditor : public juce::AudioProcessorEditor
@@ -35,36 +29,61 @@ public:
     void mouseExit (const juce::MouseEvent&) override;
 
 private:
-    // ── Zone identifiers ─────────────────────────────────────────────────────
+    // ── Custom LookAndFeel ────────────────────────────────────────────────────
+    struct SnareLookAndFeel : public juce::LookAndFeel_V4
+    {
+        SnareLookAndFeel();
+
+        void drawLinearSlider (juce::Graphics&,
+                               int x, int y, int width, int height,
+                               float sliderPos,
+                               float minSliderPos, float maxSliderPos,
+                               juce::Slider::SliderStyle,
+                               juce::Slider&) override;
+    };
+
+    // ── Zone enum & state ─────────────────────────────────────────────────────
     enum class Zone { None, Body, Noise, Room };
-
-    // ── Interaction state ─────────────────────────────────────────────────────
     Zone hoveredZone { Zone::None };
-    Zone activeZone  { Zone::Body };    // Body section active by default
+    Zone activeZone  { Zone::Body };
 
-    // ── Zone rectangles (computed in resized()) ───────────────────────────────
+    // ── Zone rectangles (set in resized()) ───────────────────────────────────
     juce::Rectangle<int> bodyZoneBounds;
     juce::Rectangle<int> drumAreaBounds;
     juce::Rectangle<int> noiseZoneBounds;
     juce::Rectangle<int> roomZoneBounds;
 
+    // ── Lifetime-ordered members ──────────────────────────────────────────────
+    SnareMakerAudioProcessor& audioProcessor;
+    SnareLookAndFeel           lnf;
+
+    // Phase 3a-2a: first Body control
+    juce::Slider bodyFreqSlider;
+    juce::Label  bodyFreqLabel;
+
+    // APVTS attachment (destroyed before slider)
+    using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
+    std::unique_ptr<Attachment> bodyFreqAttachment;
+
     // ── Paint helpers ─────────────────────────────────────────────────────────
-    Zone zoneAt        (juce::Point<int> pos) const noexcept;
+    Zone zoneAt (juce::Point<int> pos) const noexcept;
 
     void paintHeader   (juce::Graphics&) const;
 
+    // hasControls = true → skip hint labels and "click to expand" text
     void paintZone     (juce::Graphics&,
-                        juce::Rectangle<int>    bounds,
-                        Zone                    zone,
-                        const juce::String&     title,
-                        juce::Colour            accent,
-                        const juce::StringArray& hints) const;
+                        juce::Rectangle<int>     bounds,
+                        Zone                     zone,
+                        const juce::String&      title,
+                        juce::Colour             accent,
+                        const juce::StringArray& hints,
+                        bool                     hasControls = false) const;
 
     void paintDrumArea  (juce::Graphics&, juce::Rectangle<int> area) const;
     void paintSnareDrum (juce::Graphics&, juce::Rectangle<int> area) const;
 
-    // ─────────────────────────────────────────────────────────────────────────
-    SnareMakerAudioProcessor& audioProcessor;
+    void setupSlider (juce::Slider&, juce::Label&,
+                      const juce::String& labelText, juce::Colour accent);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SnareMakerAudioProcessorEditor)
 };
