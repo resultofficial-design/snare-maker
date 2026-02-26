@@ -133,6 +133,15 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     noiseReleaseAttachment = std::make_unique<Attachment> (
         audioProcessor.apvts, "noiseRelease", noiseReleaseSlider);
 
+    // Noise zone – filter freq + tilt EQ
+    setupSlider (noiseFiltFreqSlider, noiseFiltFreqLabel, "FILT FREQ", kNoiseRed);
+    setupSlider (noiseBrightSlider,   noiseBrightLabel,   "BRIGHT",    kNoiseRed);
+
+    noiseFiltFreqAttachment = std::make_unique<Attachment> (
+        audioProcessor.apvts, "noiseFiltFreq", noiseFiltFreqSlider);
+    noiseBrightAttachment   = std::make_unique<Attachment> (
+        audioProcessor.apvts, "noiseBright",   noiseBrightSlider);
+
     setSize (kWinW, kWinH);
 }
 
@@ -199,39 +208,46 @@ void SnareMakerAudioProcessorEditor::resized()
         phaseOffsetSlider.setBounds (zx + colW + pad, sliderY, kSliderW, kSliderH);
     }
 
-    // ── Noise zone: 2×2 ADSR grid ─────────────────────────────────────────────
+    // ── Noise zone: 2-column × 3-row grid ────────────────────────────────────
     //   Zone:  x=665, y=50, w=195, h=398
-    //   2 equal columns (97 px) × 2 rows.
-    //   Slider height reduced to 155 px so both rows sit inside 398 px:
-    //     row1 label y=86, slider y=104, bottom=259
-    //     gap = 8 px
-    //     row2 label y=267, slider y=285, bottom=440  (<448 ✓)
+    //   2 equal columns (97 px) × 3 rows, sliderH = 90 px.
     //
-    //   Col 0  Attack  (row 1) · Sustain  (row 2)
-    //   Col 1  Decay   (row 1) · Release  (row 2)
+    //   Vertical budget from title-bottom (y=86) to zone-bottom (y=448): 362 px
+    //     3 × (kLabelH=18 + slH=90) + 2 × gap=10  =  3×108 + 20  = 344 px  ✓
+    //     Footer clearance: 362 − 344 = 18 px
+    //
+    //   Col 0  Attack   (row 1) · Sustain  (row 2) · FiltFreq (row 3)
+    //   Col 1  Decay    (row 1) · Release  (row 2) · Bright   (row 3)
     {
-        const int nzx   = noiseZoneBounds.getX();            // 665
-        const int nzy   = noiseZoneBounds.getY();            // 50
-        const int colW  = noiseZoneBounds.getWidth() / 2;   // 97
-        const int pad   = (colW - kSliderW) / 2;            // 18
-        const int slH   = 155;                               // reduced height
+        const int nzx  = noiseZoneBounds.getX();           // 665
+        const int nzy  = noiseZoneBounds.getY();           // 50
+        const int colW = noiseZoneBounds.getWidth() / 2;   // 97
+        const int pad  = (colW - kSliderW) / 2;            // 18
+        const int slH  = 90;
+        const int gap  = 10;
 
         const int r1LabelY  = nzy + 36;
-        const int r1SliderY = r1LabelY + kLabelH;
-        const int r2LabelY  = r1SliderY + slH + 8;
+        const int r1SliderY = r1LabelY  + kLabelH;
+        const int r2LabelY  = r1SliderY + slH + gap;
         const int r2SliderY = r2LabelY  + kLabelH;
+        const int r3LabelY  = r2SliderY + slH + gap;
+        const int r3SliderY = r3LabelY  + kLabelH;
 
         // Col 0
-        noiseAttackLabel  .setBounds (nzx,         r1LabelY, colW, kLabelH);
-        noiseAttackSlider .setBounds (nzx + pad,   r1SliderY, kSliderW, slH);
-        noiseSustainLabel .setBounds (nzx,         r2LabelY, colW, kLabelH);
-        noiseSustainSlider.setBounds (nzx + pad,   r2SliderY, kSliderW, slH);
+        noiseAttackLabel   .setBounds (nzx,       r1LabelY,  colW, kLabelH);
+        noiseAttackSlider  .setBounds (nzx + pad, r1SliderY, kSliderW, slH);
+        noiseSustainLabel  .setBounds (nzx,       r2LabelY,  colW, kLabelH);
+        noiseSustainSlider .setBounds (nzx + pad, r2SliderY, kSliderW, slH);
+        noiseFiltFreqLabel .setBounds (nzx,       r3LabelY,  colW, kLabelH);
+        noiseFiltFreqSlider.setBounds (nzx + pad, r3SliderY, kSliderW, slH);
 
         // Col 1
-        noiseDecayLabel   .setBounds (nzx + colW,        r1LabelY, colW, kLabelH);
-        noiseDecaySlider  .setBounds (nzx + colW + pad,  r1SliderY, kSliderW, slH);
-        noiseReleaseLabel .setBounds (nzx + colW,        r2LabelY, colW, kLabelH);
-        noiseReleaseSlider.setBounds (nzx + colW + pad,  r2SliderY, kSliderW, slH);
+        noiseDecayLabel   .setBounds (nzx + colW,       r1LabelY,  colW, kLabelH);
+        noiseDecaySlider  .setBounds (nzx + colW + pad, r1SliderY, kSliderW, slH);
+        noiseReleaseLabel .setBounds (nzx + colW,       r2LabelY,  colW, kLabelH);
+        noiseReleaseSlider.setBounds (nzx + colW + pad, r2SliderY, kSliderW, slH);
+        noiseBrightLabel  .setBounds (nzx + colW,       r3LabelY,  colW, kLabelH);
+        noiseBrightSlider .setBounds (nzx + colW + pad, r3SliderY, kSliderW, slH);
     }
 }
 

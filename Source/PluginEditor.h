@@ -77,6 +77,13 @@ private:
     juce::Slider noiseReleaseSlider;
     juce::Label  noiseReleaseLabel;
 
+    // Phase 3a-2d: Noise filter freq + tilt EQ brightness
+    juce::Slider noiseFiltFreqSlider;
+    juce::Label  noiseFiltFreqLabel;
+
+    juce::Slider noiseBrightSlider;
+    juce::Label  noiseBrightLabel;
+
     // APVTS attachments (destroyed before sliders)
     using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     std::unique_ptr<Attachment> bodyFreqAttachment;
@@ -85,6 +92,8 @@ private:
     std::unique_ptr<Attachment> noiseDecayAttachment;
     std::unique_ptr<Attachment> noiseSustainAttachment;
     std::unique_ptr<Attachment> noiseReleaseAttachment;
+    std::unique_ptr<Attachment> noiseFiltFreqAttachment;
+    std::unique_ptr<Attachment> noiseBrightAttachment;
 
     // ── Paint helpers ─────────────────────────────────────────────────────────
     Zone zoneAt (juce::Point<int> pos) const noexcept;
