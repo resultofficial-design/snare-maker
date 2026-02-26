@@ -1,5 +1,6 @@
 #pragma once
 #include <JuceHeader.h>
+#include "BiquadFilter.h"   // Phase 2b: noise filter (header-only, no heap alloc)
 
 class SnareMakerAudioProcessor : public juce::AudioProcessor
 {
@@ -37,23 +38,82 @@ public:
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
-    // Raw parameter pointers – safe to read from the audio thread
-    std::atomic<float>* pBodyFreq    { nullptr };
-    std::atomic<float>* pPitchAmount { nullptr };
-    std::atomic<float>* pPitchDecay   { nullptr };
-    std::atomic<float>* pPitchCurve   { nullptr };   // Phase 2a: 0=Exp, 1=Lin, 2=Log
-    std::atomic<float>* pPhaseOffset  { nullptr };   // Phase 2a: 0–360°
-    std::atomic<float>* pNoiseLevel   { nullptr };
-    std::atomic<float>* pNoiseDecay  { nullptr };
-    std::atomic<float>* pOutputGain  { nullptr };
+    // ── Raw parameter pointers (safe to read from audio thread) ───────────
 
-    // Synthesis state (audio thread only)
+    // Body oscillator (Phase 1 / 2a)
+    std::atomic<float>* pBodyFreq      { nullptr };
+    std::atomic<float>* pPitchAmount   { nullptr };
+    std::atomic<float>* pPitchDecay    { nullptr };
+    std::atomic<float>* pPitchCurve    { nullptr };
+    std::atomic<float>* pPhaseOffset   { nullptr };
+
+    // Noise level (Phase 1)
+    std::atomic<float>* pNoiseLevel    { nullptr };
+
+    // Noise ADSR (Phase 2b)
+    std::atomic<float>* pNoiseAttack   { nullptr };
+    std::atomic<float>* pNoiseDecay    { nullptr };
+    std::atomic<float>* pNoiseSustain  { nullptr };
+    std::atomic<float>* pNoiseRelease  { nullptr };
+
+    // Noise filter (Phase 2b)
+    std::atomic<float>* pNoiseFiltType { nullptr };
+    std::atomic<float>* pNoiseFiltFreq { nullptr };
+    std::atomic<float>* pNoiseFiltQ    { nullptr };
+
+    // Noise brightness (Phase 2b)
+    std::atomic<float>* pNoiseBright   { nullptr };
+
+    // Output
+    std::atomic<float>* pOutputGain    { nullptr };
+
+    // ── Output gain smoother (Phase 2c) ───────────────────────────────────
+    // Prevents zipper noise when the gain knob is moved or automated.
+    // Advanced once per sample so it stays in sync with the buffer position
+    // even during silent blocks.
+    juce::SmoothedValue<float> gainSmooth;
+
+    // ── Body oscillator state (audio thread only) ──────────────────────────
     bool   isPlaying         { false };
-    double envTime           { 0.0 };   // elapsed time in samples since trigger
+    double envTime           { 0.0 };   // elapsed samples since trigger
     double phase             { 0.0 };   // normalised oscillator phase [0, 1)
     double currentSampleRate { 44100.0 };
 
+    // ── Body retrigger declick (Phase 2c) ─────────────────────────────────
+    //
+    // Problem: when a note-on arrives while the body is still decaying, the
+    // previous output sample is abruptly cut (e.g. −14 dBFS jump) producing
+    // an audible click.
+    //
+    // Solution – two-sided crossfade over kDeclickSamples (~3 ms):
+    //   OLD body: frozen last-output sample fades linearly 1→0 (bodyFadeSample)
+    //   NEW body: onset gain ramps linearly 0→1 (bodyOnsetGain)
+    // The combined output has no discontinuity at the retrigger boundary.
+    //
+    static constexpr int kDeclickSamples = 128; // ~2.9 ms at 44.1 kHz
+
+    float  bodyLastOutput  { 0.0f }; // tracks last rendered body sample
+    float  bodyFadeSample  { 0.0f }; // frozen level to fade out on retrigger
+    int    bodyFadeLeft    { 0 };    // countdown: old-body fade samples remaining
+    double bodyOnsetGain   { 1.0 };  // [0,1] onset multiplier for new body
+    double bodyOnsetRate   { 0.0 };  // per-sample increment for bodyOnsetGain
+
+    // ── Noise ADSR state (Phase 2b, audio thread only) ────────────────────
+    enum class NoiseStage { Idle, Attack, Decay, Sustain, Release };
+    NoiseStage noiseStage    { NoiseStage::Idle };
+    double     noiseEnvLevel { 0.0 };   // current ADSR level [0, 1]
+
+    // ── Noise filter instances (Phase 2b, audio thread only) ──────────────
+    BiquadFilter noiseTypeFilter;     // HP / BP / LP
+    BiquadFilter noiseBrightFilter;   // high-shelf tilt EQ
+
     juce::Random random;
+
+    // ── Private helpers (Phase 2c modular refactoring) ────────────────────
+    void resetVoiceState ();
+    void triggerNote     (float phaseOffsetDeg);
+    void releaseNote     ();
+    void killAll         ();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SnareMakerAudioProcessor)
 };

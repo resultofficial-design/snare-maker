@@ -17,38 +17,58 @@ namespace
     const juce::Colour kNoiseRed  { 0xffe94560 };
     const juce::Colour kOutTeal   { 0xff00d4aa };
 
-    // Layout constants – must stay in sync with resized()
-    //   Phase 2a: 7 columns (4 pitch + 2 noise + 1 output) × 100 px = 700 px
+    // ── Layout constants ──────────────────────────────────────────────────
+    //
+    //  Phase 2b layout: 13 columns × 100 px = 1300 px wide, 400 px tall
+    //
+    //  Cols  0-3  : Pitch panel  (body freq, pitch amt, pitch decay, phase off)
+    //  Cols  4-11 : Noise panel  (level, attack, decay, sustain, release,
+    //                             filt freq, filt Q, brightness)
+    //  Col  12    : Output panel (output gain)
+    //
     constexpr int kColW    = 100;
     constexpr int kPanelY  = 50;    // section panels start here
-    constexpr int kComboY  = 68;    // pitch-curve combobox y  (kPanelY + 18)
-    constexpr int kComboH  = 22;    // pitch-curve combobox height
+    constexpr int kComboY  = 68;    // combo-box row (between title bar and sliders)
+    constexpr int kComboH  = 22;
     constexpr int kTopY    = 100;   // parameter-name labels start here
     constexpr int kLabelH  = 18;
     constexpr int kSliderH = 240;   // includes built-in TextBoxBelow (18 px)
     constexpr int kPadX    = 8;
+
+    // Column indices – kept as named constants for clarity
+    constexpr int kColBodyFreq     = 0;
+    constexpr int kColPitchAmount  = 1;
+    constexpr int kColPitchDecay   = 2;
+    constexpr int kColPhaseOffset  = 3;
+
+    constexpr int kColNoiseLevel   = 4;
+    constexpr int kColNoiseAttack  = 5;
+    constexpr int kColNoiseDecay   = 6;
+    constexpr int kColNoiseSustain = 7;
+    constexpr int kColNoiseRelease = 8;
+    constexpr int kColFiltFreq     = 9;
+    constexpr int kColFiltQ        = 10;
+    constexpr int kColBrightness   = 11;
+
+    constexpr int kColOutput       = 12;
 }
 
 // =============================================================================
-// SnareLookAndFeel
+// SnareLookAndFeel  (unchanged from Phase 1 / 2a)
 // =============================================================================
 
 SnareMakerAudioProcessorEditor::SnareLookAndFeel::SnareLookAndFeel()
 {
-    // Slider text-box
     setColour (juce::Slider::textBoxTextColourId,         kTextMuted);
     setColour (juce::Slider::textBoxBackgroundColourId,   kBgWindow);
     setColour (juce::Slider::textBoxOutlineColourId,      juce::Colours::transparentBlack);
     setColour (juce::Slider::textBoxHighlightColourId,    kPitchBlue);
+    setColour (juce::Label::textColourId,                 kTextBright);
 
-    // Labels
-    setColour (juce::Label::textColourId, kTextBright);
-
-    // PopupMenu (used by ComboBox dropdown)
-    setColour (juce::PopupMenu::backgroundColourId,           juce::Colour (0xff181828));
-    setColour (juce::PopupMenu::textColourId,                 kTextBright);
-    setColour (juce::PopupMenu::highlightedBackgroundColourId,kPitchBlue);
-    setColour (juce::PopupMenu::highlightedTextColourId,      kTextBright);
+    setColour (juce::PopupMenu::backgroundColourId,            juce::Colour (0xff181828));
+    setColour (juce::PopupMenu::textColourId,                  kTextBright);
+    setColour (juce::PopupMenu::highlightedBackgroundColourId, kPitchBlue);
+    setColour (juce::PopupMenu::highlightedTextColourId,       kTextBright);
 }
 
 void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawLinearSlider (
@@ -70,8 +90,8 @@ void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawLinearSlider (
     g.setColour (kBgTrack);
     g.fillRoundedRectangle (cx - kTrackW * 0.5f, top, kTrackW, bottom - top, 3.0f);
 
-    const juce::Colour accent    = slider.findColour (juce::Slider::trackColourId);
-    const float        fillH     = bottom - sliderPos;
+    const juce::Colour accent = slider.findColour (juce::Slider::trackColourId);
+    const float        fillH  = bottom - sliderPos;
     if (fillH > 0.0f)
     {
         g.setColour (accent);
@@ -100,18 +120,13 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
 {
     setLookAndFeel (&lnf);
 
-    // ── Phase 1 sliders ───────────────────────────────────────────────────────
+    // ── Body oscillator sliders (Phase 1 + 2a – unchanged) ───────────────────
     setupSlider (bodyFreqSlider,    bodyFreqLabel,    "BODY FREQ",   kPitchBlue);
     setupSlider (pitchAmountSlider, pitchAmountLabel, "PITCH AMT",   kPitchBlue);
     setupSlider (pitchDecaySlider,  pitchDecayLabel,  "PITCH DECAY", kPitchBlue);
-    setupSlider (noiseLevelSlider,  noiseLevelLabel,  "NOISE LEVEL", kNoiseRed);
-    setupSlider (noiseDecaySlider,  noiseDecayLabel,  "NOISE DECAY", kNoiseRed);
-    setupSlider (outputGainSlider,  outputGainLabel,  "OUTPUT GAIN", kOutTeal);
-
-    // ── Phase 2a: Phase Offset slider ────────────────────────────────────────
     setupSlider (phaseOffsetSlider, phaseOffsetLabel, "PHASE OFF",   kPitchBlue);
 
-    // ── Phase 2a: Pitch Curve combobox ────────────────────────────────────────
+    // Pitch-curve ComboBox (Phase 2a – unchanged)
     pitchCurveCombo.addItem ("Exponential", 1);
     pitchCurveCombo.addItem ("Linear",      2);
     pitchCurveCombo.addItem ("Logarithmic", 3);
@@ -127,20 +142,58 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     pitchCurveLabel.setColour (juce::Label::textColourId, kTextMuted);
     addAndMakeVisible (pitchCurveLabel);
 
+    // ── Noise sliders (Phase 2b) ──────────────────────────────────────────────
+    setupSlider (noiseLevelSlider,   noiseLevelLabel,   "LEVEL",     kNoiseRed);
+    setupSlider (noiseAttackSlider,  noiseAttackLabel,  "ATTACK",    kNoiseRed);
+    setupSlider (noiseDecaySlider,   noiseDecayLabel,   "DECAY",     kNoiseRed);
+    setupSlider (noiseSustainSlider, noiseSustainLabel, "SUSTAIN",   kNoiseRed);
+    setupSlider (noiseReleaseSlider, noiseReleaseLabel, "RELEASE",   kNoiseRed);
+    setupSlider (noiseFiltFreqSlider,noiseFiltFreqLabel,"FILT FREQ", kNoiseRed);
+    setupSlider (noiseFiltQSlider,   noiseFiltQLabel,   "FILT Q",    kNoiseRed);
+    setupSlider (noiseBrightSlider,  noiseBrightLabel,  "BRIGHT",    kNoiseRed);
+
+    // Noise filter-type ComboBox (Phase 2b)
+    noiseFiltTypeCombo.addItem ("High Pass", 1);
+    noiseFiltTypeCombo.addItem ("Band Pass", 2);
+    noiseFiltTypeCombo.addItem ("Low Pass",  3);
+    noiseFiltTypeCombo.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff252538));
+    noiseFiltTypeCombo.setColour (juce::ComboBox::textColourId,       kTextBright);
+    noiseFiltTypeCombo.setColour (juce::ComboBox::outlineColourId,    kNoiseRed.withAlpha (0.5f));
+    noiseFiltTypeCombo.setColour (juce::ComboBox::arrowColourId,      kNoiseRed);
+    addAndMakeVisible (noiseFiltTypeCombo);
+
+    noiseFiltTypeLabel.setText ("FILTER", juce::dontSendNotification);
+    noiseFiltTypeLabel.setJustificationType (juce::Justification::centredRight);
+    noiseFiltTypeLabel.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
+    noiseFiltTypeLabel.setColour (juce::Label::textColourId, kTextMuted);
+    addAndMakeVisible (noiseFiltTypeLabel);
+
+    // ── Output slider ─────────────────────────────────────────────────────────
+    setupSlider (outputGainSlider, outputGainLabel, "OUTPUT GAIN", kOutTeal);
+
     // ── APVTS attachments ─────────────────────────────────────────────────────
     auto& apvts = audioProcessor.apvts;
 
-    bodyFreqAttachment    = std::make_unique<Attachment> (apvts, "bodyFreq",    bodyFreqSlider);
-    pitchAmountAttachment = std::make_unique<Attachment> (apvts, "pitchAmount", pitchAmountSlider);
-    pitchDecayAttachment  = std::make_unique<Attachment> (apvts, "pitchDecay",  pitchDecaySlider);
-    noiseLevelAttachment  = std::make_unique<Attachment> (apvts, "noiseLevel",  noiseLevelSlider);
-    noiseDecayAttachment  = std::make_unique<Attachment> (apvts, "noiseDecay",  noiseDecaySlider);
-    outputGainAttachment  = std::make_unique<Attachment> (apvts, "outputGain",  outputGainSlider);
-    phaseOffsetAttachment = std::make_unique<Attachment> (apvts, "phaseOffset", phaseOffsetSlider);  // 2a
-    pitchCurveAttachment  = std::make_unique<ComboBoxAttachment> (apvts, "pitchCurve", pitchCurveCombo); // 2a
+    bodyFreqAttachment      = std::make_unique<Attachment>      (apvts, "bodyFreq",     bodyFreqSlider);
+    pitchAmountAttachment   = std::make_unique<Attachment>      (apvts, "pitchAmount",  pitchAmountSlider);
+    pitchDecayAttachment    = std::make_unique<Attachment>      (apvts, "pitchDecay",   pitchDecaySlider);
+    phaseOffsetAttachment   = std::make_unique<Attachment>      (apvts, "phaseOffset",  phaseOffsetSlider);
+    pitchCurveAttachment    = std::make_unique<ComboAttachment> (apvts, "pitchCurve",   pitchCurveCombo);
 
-    // 7 columns × 100 px
-    setSize (700, 380);
+    noiseLevelAttachment    = std::make_unique<Attachment>      (apvts, "noiseLevel",   noiseLevelSlider);
+    noiseAttackAttachment   = std::make_unique<Attachment>      (apvts, "noiseAttack",  noiseAttackSlider);
+    noiseDecayAttachment    = std::make_unique<Attachment>      (apvts, "noiseDecay",   noiseDecaySlider);
+    noiseSustainAttachment  = std::make_unique<Attachment>      (apvts, "noiseSustain", noiseSustainSlider);
+    noiseReleaseAttachment  = std::make_unique<Attachment>      (apvts, "noiseRelease", noiseReleaseSlider);
+    noiseFiltTypeAttachment = std::make_unique<ComboAttachment> (apvts, "noiseFiltType",noiseFiltTypeCombo);
+    noiseFiltFreqAttachment = std::make_unique<Attachment>      (apvts, "noiseFiltFreq",noiseFiltFreqSlider);
+    noiseFiltQAttachment    = std::make_unique<Attachment>      (apvts, "noiseFiltQ",   noiseFiltQSlider);
+    noiseBrightAttachment   = std::make_unique<Attachment>      (apvts, "noiseBright",  noiseBrightSlider);
+
+    outputGainAttachment    = std::make_unique<Attachment>      (apvts, "outputGain",   outputGainSlider);
+
+    // 13 columns × 100 px wide, 400 px tall
+    setSize (1300, 400);
 }
 
 SnareMakerAudioProcessorEditor::~SnareMakerAudioProcessorEditor()
@@ -149,7 +202,7 @@ SnareMakerAudioProcessorEditor::~SnareMakerAudioProcessorEditor()
 }
 
 // =============================================================================
-// setupSlider
+// setupSlider  (unchanged helper)
 // =============================================================================
 
 void SnareMakerAudioProcessorEditor::setupSlider (juce::Slider&       slider,
@@ -187,30 +240,44 @@ void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
     g.setFont (juce::Font (juce::FontOptions{}.withHeight (20.0f).withStyle ("Bold")));
     g.drawText ("SNARE MAKER", 0, 0, w, 44, juce::Justification::centred, false);
 
-    // Section panels
-    // Phase 2a layout:  cols 0-3 = Pitch (400 px)  |  4-5 = Noise (200 px)  |  6 = Output (100 px)
-    // Panel inset: 4 px from each column boundary.
+    // ── Section panels ────────────────────────────────────────────────────────
+    // Panel x = firstCol * kColW + 4
+    // Panel w = numCols  * kColW - 8
     const float panelY = (float) kPanelY;
     const float panelH = (float) (h - kPanelY - 4);
 
     g.setColour (kBgPanel);
-    g.fillRoundedRectangle (4.0f,   panelY, 392.0f, panelH, 6.0f);  // Pitch  (0..400)
-    g.fillRoundedRectangle (404.0f, panelY, 192.0f, panelH, 6.0f);  // Noise  (400..600)
-    g.fillRoundedRectangle (604.0f, panelY,  92.0f, panelH, 6.0f);  // Output (600..700)
+    // Pitch  (cols 0-3)
+    g.fillRoundedRectangle (  4.0f, panelY, 392.0f, panelH, 6.0f);
+    // Noise  (cols 4-11)
+    g.fillRoundedRectangle (404.0f, panelY, 792.0f, panelH, 6.0f);
+    // Output (col 12)
+    g.fillRoundedRectangle (1204.0f, panelY, 92.0f, panelH, 6.0f);
 
-    // Section header text
+    // ── Section header text ───────────────────────────────────────────────────
     constexpr int hdrY = kPanelY + 5;
     constexpr int hdrH = 14;
     g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
 
     g.setColour (kPitchBlue);
-    g.drawText ("PITCH",  4,   hdrY, 392, hdrH, juce::Justification::centred, false);
+    g.drawText ("PITCH",  4,    hdrY, 392, hdrH, juce::Justification::centred, false);
 
     g.setColour (kNoiseRed);
-    g.drawText ("NOISE",  404, hdrY, 192, hdrH, juce::Justification::centred, false);
+    g.drawText ("NOISE",  404,  hdrY, 792, hdrH, juce::Justification::centred, false);
 
     g.setColour (kOutTeal);
-    g.drawText ("OUTPUT", 604, hdrY,  92, hdrH, juce::Justification::centred, false);
+    g.drawText ("OUTPUT", 1204, hdrY,  92, hdrH, juce::Justification::centred, false);
+
+    // ── Noise sub-section dividers (light vertical lines) ─────────────────────
+    // Separates: ADSR | FILTER | BRIGHT
+    g.setColour (kBgTrack);
+    const float divTop = (float)(kPanelY + 20);
+    const float divBot = panelY + panelH - 4.0f;
+
+    // After RELEASE (end of col 8 = x 900)
+    g.fillRect (900.0f, divTop, 1.0f, divBot - divTop);
+    // After FILT Q (end of col 10 = x 1100)
+    g.fillRect (1100.0f, divTop, 1.0f, divBot - divTop);
 }
 
 // =============================================================================
@@ -219,30 +286,47 @@ void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
 
 void SnareMakerAudioProcessorEditor::resized()
 {
-    // ── Pitch-curve combobox (lives in the pitch panel, between header & sliders)
-    constexpr int comboLabelW = 52;
-    pitchCurveLabel.setBounds (kPadX,              kComboY, comboLabelW,                  kComboH);
-    pitchCurveCombo.setBounds (kPadX + comboLabelW + 4, kComboY,
-                               4 * kColW - kPadX * 2 - comboLabelW - 4, kComboH);
-
-    // ── One slider + label per column ─────────────────────────────────────────
+    // ── Helper: place one slider + its label into a column ────────────────────
     auto placeColumn = [&] (juce::Slider& slider, juce::Label& label, int col)
     {
-        const int x = col * kColW + kPadX;
+        const int x  = col * kColW + kPadX;
         const int cw = kColW - kPadX * 2;
         label .setBounds (x, kTopY,           cw, kLabelH);
         slider.setBounds (x, kTopY + kLabelH, cw, kSliderH);
     };
 
-    // Phase 1 columns
-    placeColumn (bodyFreqSlider,    bodyFreqLabel,    0);
-    placeColumn (pitchAmountSlider, pitchAmountLabel, 1);
-    placeColumn (pitchDecaySlider,  pitchDecayLabel,  2);
-    // Phase 2a column
-    placeColumn (phaseOffsetSlider, phaseOffsetLabel, 3);
-    // Noise (shifted from cols 3-4 to 4-5)
-    placeColumn (noiseLevelSlider,  noiseLevelLabel,  4);
-    placeColumn (noiseDecaySlider,  noiseDecayLabel,  5);
-    // Output (shifted from col 5 to col 6)
-    placeColumn (outputGainSlider,  outputGainLabel,  6);
+    // ── Pitch panel (Phase 2a – unchanged) ───────────────────────────────────
+    constexpr int comboLabelW = 52;
+    pitchCurveLabel.setBounds (kPadX, kComboY, comboLabelW, kComboH);
+    pitchCurveCombo.setBounds (kPadX + comboLabelW + 4, kComboY,
+                               4 * kColW - kPadX * 2 - comboLabelW - 4, kComboH);
+
+    placeColumn (bodyFreqSlider,    bodyFreqLabel,    kColBodyFreq);
+    placeColumn (pitchAmountSlider, pitchAmountLabel, kColPitchAmount);
+    placeColumn (pitchDecaySlider,  pitchDecayLabel,  kColPitchDecay);
+    placeColumn (phaseOffsetSlider, phaseOffsetLabel, kColPhaseOffset);
+
+    // ── Noise panel ───────────────────────────────────────────────────────────
+
+    // Filter-type ComboBox sits in the header row of the filter sub-section
+    // (cols 9-10), mirroring the style of the pitchCurve combo.
+    const int filtSectionX = kColFiltFreq * kColW;                // = 900
+    const int filtSectionW = 2 * kColW;                           // = 200
+    noiseFiltTypeLabel.setBounds (filtSectionX + kPadX, kComboY,
+                                  comboLabelW, kComboH);
+    noiseFiltTypeCombo.setBounds (filtSectionX + kPadX + comboLabelW + 4, kComboY,
+                                  filtSectionW - kPadX * 2 - comboLabelW - 4, kComboH);
+
+    // Noise sliders
+    placeColumn (noiseLevelSlider,    noiseLevelLabel,    kColNoiseLevel);
+    placeColumn (noiseAttackSlider,   noiseAttackLabel,   kColNoiseAttack);
+    placeColumn (noiseDecaySlider,    noiseDecayLabel,    kColNoiseDecay);
+    placeColumn (noiseSustainSlider,  noiseSustainLabel,  kColNoiseSustain);
+    placeColumn (noiseReleaseSlider,  noiseReleaseLabel,  kColNoiseRelease);
+    placeColumn (noiseFiltFreqSlider, noiseFiltFreqLabel, kColFiltFreq);
+    placeColumn (noiseFiltQSlider,    noiseFiltQLabel,    kColFiltQ);
+    placeColumn (noiseBrightSlider,   noiseBrightLabel,   kColBrightness);
+
+    // ── Output panel ──────────────────────────────────────────────────────────
+    placeColumn (outputGainSlider, outputGainLabel, kColOutput);
 }
