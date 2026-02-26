@@ -64,10 +64,27 @@ private:
     juce::Slider phaseOffsetSlider;
     juce::Label  phaseOffsetLabel;
 
+    // Phase 3a-2c: Noise ADSR controls
+    juce::Slider noiseAttackSlider;
+    juce::Label  noiseAttackLabel;
+
+    juce::Slider noiseDecaySlider;
+    juce::Label  noiseDecayLabel;
+
+    juce::Slider noiseSustainSlider;
+    juce::Label  noiseSustainLabel;
+
+    juce::Slider noiseReleaseSlider;
+    juce::Label  noiseReleaseLabel;
+
     // APVTS attachments (destroyed before sliders)
     using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     std::unique_ptr<Attachment> bodyFreqAttachment;
     std::unique_ptr<Attachment> phaseOffsetAttachment;
+    std::unique_ptr<Attachment> noiseAttackAttachment;
+    std::unique_ptr<Attachment> noiseDecayAttachment;
+    std::unique_ptr<Attachment> noiseSustainAttachment;
+    std::unique_ptr<Attachment> noiseReleaseAttachment;
 
     // ── Paint helpers ─────────────────────────────────────────────────────────
     Zone zoneAt (juce::Point<int> pos) const noexcept;

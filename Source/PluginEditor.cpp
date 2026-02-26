@@ -118,6 +118,21 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     phaseOffsetAttachment = std::make_unique<Attachment> (
         audioProcessor.apvts, "phaseOffset", phaseOffsetSlider);
 
+    // Noise zone – ADSR sliders
+    setupSlider (noiseAttackSlider,  noiseAttackLabel,  "ATTACK",   kNoiseRed);
+    setupSlider (noiseDecaySlider,   noiseDecayLabel,   "DECAY",    kNoiseRed);
+    setupSlider (noiseSustainSlider, noiseSustainLabel, "SUSTAIN",  kNoiseRed);
+    setupSlider (noiseReleaseSlider, noiseReleaseLabel, "RELEASE",  kNoiseRed);
+
+    noiseAttackAttachment  = std::make_unique<Attachment> (
+        audioProcessor.apvts, "noiseAttack",  noiseAttackSlider);
+    noiseDecayAttachment   = std::make_unique<Attachment> (
+        audioProcessor.apvts, "noiseDecay",   noiseDecaySlider);
+    noiseSustainAttachment = std::make_unique<Attachment> (
+        audioProcessor.apvts, "noiseSustain", noiseSustainSlider);
+    noiseReleaseAttachment = std::make_unique<Attachment> (
+        audioProcessor.apvts, "noiseRelease", noiseReleaseSlider);
+
     setSize (kWinW, kWinH);
 }
 
@@ -183,6 +198,41 @@ void SnareMakerAudioProcessorEditor::resized()
         phaseOffsetLabel .setBounds (zx + colW,    labelY, colW, kLabelH);
         phaseOffsetSlider.setBounds (zx + colW + pad, sliderY, kSliderW, kSliderH);
     }
+
+    // ── Noise zone: 2×2 ADSR grid ─────────────────────────────────────────────
+    //   Zone:  x=665, y=50, w=195, h=398
+    //   2 equal columns (97 px) × 2 rows.
+    //   Slider height reduced to 155 px so both rows sit inside 398 px:
+    //     row1 label y=86, slider y=104, bottom=259
+    //     gap = 8 px
+    //     row2 label y=267, slider y=285, bottom=440  (<448 ✓)
+    //
+    //   Col 0  Attack  (row 1) · Sustain  (row 2)
+    //   Col 1  Decay   (row 1) · Release  (row 2)
+    {
+        const int nzx   = noiseZoneBounds.getX();            // 665
+        const int nzy   = noiseZoneBounds.getY();            // 50
+        const int colW  = noiseZoneBounds.getWidth() / 2;   // 97
+        const int pad   = (colW - kSliderW) / 2;            // 18
+        const int slH   = 155;                               // reduced height
+
+        const int r1LabelY  = nzy + 36;
+        const int r1SliderY = r1LabelY + kLabelH;
+        const int r2LabelY  = r1SliderY + slH + 8;
+        const int r2SliderY = r2LabelY  + kLabelH;
+
+        // Col 0
+        noiseAttackLabel  .setBounds (nzx,         r1LabelY, colW, kLabelH);
+        noiseAttackSlider .setBounds (nzx + pad,   r1SliderY, kSliderW, slH);
+        noiseSustainLabel .setBounds (nzx,         r2LabelY, colW, kLabelH);
+        noiseSustainSlider.setBounds (nzx + pad,   r2SliderY, kSliderW, slH);
+
+        // Col 1
+        noiseDecayLabel   .setBounds (nzx + colW,        r1LabelY, colW, kLabelH);
+        noiseDecaySlider  .setBounds (nzx + colW + pad,  r1SliderY, kSliderW, slH);
+        noiseReleaseLabel .setBounds (nzx + colW,        r2LabelY, colW, kLabelH);
+        noiseReleaseSlider.setBounds (nzx + colW + pad,  r2SliderY, kSliderW, slH);
+    }
 }
 
 // =============================================================================
@@ -235,13 +285,9 @@ void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
                {},    // hints unused when hasControls = true
                true);
 
-    // Noise / Room: still showing placeholder hints
+    // Noise zone: controls present → skip hint labels
     paintZone (g, noiseZoneBounds, Zone::Noise, "NOISE",
-               kNoiseRed,
-               { "Level", "Attack  ·  Decay",
-                 "Sustain  ·  Release",
-                 "Filter Type  ·  Freq  ·  Q",
-                 "Brightness" });
+               kNoiseRed, {}, true);
 
     paintZone (g, roomZoneBounds,  Zone::Room,  "ROOM",
                kRoomPurple,
