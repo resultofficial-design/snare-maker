@@ -38,13 +38,6 @@ namespace
     constexpr int kDrumW   = kWinW - kBodyW - kNoiseW - kOutputW;  // 470
     constexpr int kMainH   = kWinH - kHeaderH - kRoomH;            // 398
 
-    // ── Slider / label geometry ────────────────────────────────────────────────
-    constexpr int kSliderW  = 60;
-    constexpr int kLabelH   = 18;
-    constexpr int kTextBoxH = 18;
-    constexpr int kTextBoxW = 74;
-    constexpr int kComboH   = 22;
-
     // ── Tab geometry (Phase 6-1) ────────────────────────────────────────────────
     constexpr int kTabW     = 70;
     constexpr int kTabH     = 18;
@@ -116,50 +109,8 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
 {
     setLookAndFeel (&lnf);
 
-    auto& apvts = audioProcessor.apvts;
-
-    // ── Body controls ──────────────────────────────────────────────────────────
-    setupSlider (bodyFreqSlider,    bodyFreqLabel,    "BODY FREQ",   kPitchBlue);
-    setupSlider (phaseOffsetSlider, phaseOffsetLabel, "PHASE OFF",   kPitchBlue);
-    setupSlider (pitchAmountSlider, pitchAmountLabel, "PITCH AMT",   kPitchBlue);
-    setupSlider (pitchDecaySlider,  pitchDecayLabel,  "ENV TIME",    kPitchBlue);
-
-    bodyFreqAttachment    = std::make_unique<SA> (apvts, "bodyFreq",    bodyFreqSlider);
-    phaseOffsetAttachment = std::make_unique<SA> (apvts, "phaseOffset", phaseOffsetSlider);
-    pitchAmountAttachment = std::make_unique<SA> (apvts, "pitchAmount", pitchAmountSlider);
-    pitchDecayAttachment  = std::make_unique<SA> (apvts, "pitchDecay",  pitchDecaySlider);
-
-    // ── Noise controls ─────────────────────────────────────────────────────────
-    setupSlider (noiseLevelSlider,   noiseLevelLabel,   "LEVEL",     kNoiseRed);
-    setupSlider (noiseAttackSlider,  noiseAttackLabel,  "ATTACK",    kNoiseRed);
-    setupSlider (noiseDecaySlider,   noiseDecayLabel,   "DECAY",     kNoiseRed);
-    setupSlider (noiseSustainSlider, noiseSustainLabel, "SUSTAIN",   kNoiseRed);
-    setupSlider (noiseReleaseSlider, noiseReleaseLabel, "RELEASE",   kNoiseRed);
-    setupSlider (noiseFiltFreqSlider,noiseFiltFreqLabel,"FILT FREQ", kNoiseRed);
-    setupSlider (noiseFiltQSlider,   noiseFiltQLabel,   "FILT Q",    kNoiseRed);
-    setupSlider (noiseBrightSlider,  noiseBrightLabel,  "BRIGHT",    kNoiseRed);
-
-    noiseFiltTypeCombo.addItem ("High Pass", 1);
-    noiseFiltTypeCombo.addItem ("Band Pass", 2);
-    noiseFiltTypeCombo.addItem ("Low Pass",  3);
-    setupCombo (noiseFiltTypeCombo, noiseFiltTypeLabel, "FILTER", kNoiseRed);
-
-    noiseLevelAttachment   = std::make_unique<SA> (apvts, "noiseLevel",   noiseLevelSlider);
-    noiseAttackAttachment  = std::make_unique<SA> (apvts, "noiseAttack",  noiseAttackSlider);
-    noiseDecayAttachment   = std::make_unique<SA> (apvts, "noiseDecay",   noiseDecaySlider);
-    noiseSustainAttachment = std::make_unique<SA> (apvts, "noiseSustain", noiseSustainSlider);
-    noiseReleaseAttachment = std::make_unique<SA> (apvts, "noiseRelease", noiseReleaseSlider);
-    noiseFiltFreqAttachment= std::make_unique<SA> (apvts, "noiseFiltFreq",noiseFiltFreqSlider);
-    noiseFiltQAttachment   = std::make_unique<SA> (apvts, "noiseFiltQ",   noiseFiltQSlider);
-    noiseBrightAttachment  = std::make_unique<SA> (apvts, "noiseBright",  noiseBrightSlider);
-    noiseFiltTypeAttachment= std::make_unique<CA> (apvts, "noiseFiltType",noiseFiltTypeCombo);
-
-    // ── Output control ─────────────────────────────────────────────────────────
-    setupSlider (outputGainSlider, outputGainLabel, "OUTPUT", kOutTeal);
-    outputGainAttachment = std::make_unique<SA> (apvts, "outputGain", outputGainSlider);
-
     // ── Envelope editor (overlays drum centre area) ─────────────────────────
-    envelopeEditor.connectToParameters (apvts, audioProcessor.pitchEnvelope,
+    envelopeEditor.connectToParameters (audioProcessor.apvts, audioProcessor.pitchEnvelope,
                                         audioProcessor.envelopeLock);
     addAndMakeVisible (envelopeEditor);
 
@@ -193,23 +144,6 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
 
     const bool showBody  = (tab == Tab::Body);
     const bool showNoise = (tab == Tab::Noise);
-
-    // Body controls
-    bodyFreqSlider   .setVisible (showBody);   bodyFreqLabel   .setVisible (showBody);
-    phaseOffsetSlider.setVisible (showBody);   phaseOffsetLabel.setVisible (showBody);
-    pitchAmountSlider.setVisible (showBody);   pitchAmountLabel.setVisible (showBody);
-    pitchDecaySlider .setVisible (showBody);   pitchDecayLabel .setVisible (showBody);
-
-    // Noise controls
-    noiseLevelSlider   .setVisible (showNoise);  noiseLevelLabel   .setVisible (showNoise);
-    noiseAttackSlider  .setVisible (showNoise);  noiseAttackLabel  .setVisible (showNoise);
-    noiseDecaySlider   .setVisible (showNoise);  noiseDecayLabel   .setVisible (showNoise);
-    noiseSustainSlider .setVisible (showNoise);  noiseSustainLabel .setVisible (showNoise);
-    noiseReleaseSlider .setVisible (showNoise);  noiseReleaseLabel .setVisible (showNoise);
-    noiseFiltFreqSlider.setVisible (showNoise);  noiseFiltFreqLabel.setVisible (showNoise);
-    noiseFiltQSlider   .setVisible (showNoise);  noiseFiltQLabel   .setVisible (showNoise);
-    noiseBrightSlider  .setVisible (showNoise);  noiseBrightLabel  .setVisible (showNoise);
-    noiseFiltTypeCombo .setVisible (showNoise);  noiseFiltTypeLabel.setVisible (showNoise);
 
     // Envelope mode buttons
     bodyPitchBtn.setVisible (showBody);
@@ -255,47 +189,6 @@ void SnareMakerAudioProcessorEditor::setEnvMode (EnvMode mode)
 }
 
 // =============================================================================
-// setupSlider / setupCombo
-// =============================================================================
-
-void SnareMakerAudioProcessorEditor::setupSlider (
-    juce::Slider&       slider,
-    juce::Label&        label,
-    const juce::String& labelText,
-    juce::Colour        accent)
-{
-    slider.setSliderStyle (juce::Slider::LinearVertical);
-    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, kTextBoxW, kTextBoxH);
-    slider.setColour (juce::Slider::trackColourId, accent);
-    addAndMakeVisible (slider);
-
-    label.setText (labelText, juce::dontSendNotification);
-    label.setJustificationType (juce::Justification::centred);
-    label.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
-    label.setColour (juce::Label::textColourId, kTextMuted);
-    addAndMakeVisible (label);
-}
-
-void SnareMakerAudioProcessorEditor::setupCombo (
-    juce::ComboBox&     combo,
-    juce::Label&        label,
-    const juce::String& labelText,
-    juce::Colour        accent)
-{
-    combo.setColour (juce::ComboBox::backgroundColourId, juce::Colour (0xff181828));
-    combo.setColour (juce::ComboBox::textColourId,       kTextBright);
-    combo.setColour (juce::ComboBox::outlineColourId,    accent.withAlpha (0.5f));
-    combo.setColour (juce::ComboBox::arrowColourId,      accent);
-    addAndMakeVisible (combo);
-
-    label.setText (labelText, juce::dontSendNotification);
-    label.setJustificationType (juce::Justification::centredRight);
-    label.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
-    label.setColour (juce::Label::textColourId, kTextMuted);
-    addAndMakeVisible (label);
-}
-
-// =============================================================================
 // resized
 // =============================================================================
 
@@ -337,106 +230,6 @@ void SnareMakerAudioProcessorEditor::resized()
         noiseAmpBtn .setBounds (cx - btnW / 2,          btnY, btnW, btnH);
     }
 
-    // ── Body zone: 2×2 slider grid ─────────────────────────
-    //
-    //   kBodyW = 195.  2 cols × 97 px each.  sliderH = 145 px.
-    //
-    //   Combo at y=78 (zone_y+28), h=22  → bottom=100
-    //   Row 1: label y=103, slider y=121, bottom=266
-    //   Row 2: label y=274 (+8 gap), slider y=292, bottom=437  (<448 ✓)
-    //
-    //   Col 0: bodyFreq (row 1), pitchAmount (row 2)
-    //   Col 1: phaseOffset (row 1), pitchDecay (row 2)
-    {
-        const int bx    = bodyZoneBounds.getX();   // 0
-        const int by    = bodyZoneBounds.getY();   // 50
-        const int colW  = bodyZoneBounds.getWidth() / 2;   // 97
-        const int pad   = (colW - kSliderW) / 2;           // 18
-        const int slH   = 155;
-        const int gap   = 8;
-
-        const int r1LabelY  = by + 30;
-        const int r1SliderY = r1LabelY + kLabelH;
-        const int r2LabelY  = r1SliderY + slH + gap;
-        const int r2SliderY = r2LabelY  + kLabelH;
-
-        bodyFreqLabel    .setBounds (bx,          r1LabelY, colW, kLabelH);
-        bodyFreqSlider   .setBounds (bx + pad,    r1SliderY, kSliderW, slH);
-        phaseOffsetLabel .setBounds (bx + colW,   r1LabelY, colW, kLabelH);
-        phaseOffsetSlider.setBounds (bx + colW + pad, r1SliderY, kSliderW, slH);
-
-        pitchAmountLabel .setBounds (bx,          r2LabelY, colW, kLabelH);
-        pitchAmountSlider.setBounds (bx + pad,    r2SliderY, kSliderW, slH);
-        pitchDecayLabel  .setBounds (bx + colW,   r2LabelY, colW, kLabelH);
-        pitchDecaySlider .setBounds (bx + colW + pad, r2SliderY, kSliderW, slH);
-    }
-
-    // ── Noise zone: noiseFiltType combo + 2×4 slider grid ─────────────────────
-    //
-    //   kNoiseW = 200.  2 cols × 100 px each.  sliderH = 60 px.
-    //
-    //   Combo at y=78, h=22  → bottom=100
-    //   Row 1: label y=103, slider y=121, bottom=181
-    //   Row 2: label y=187 (+6), slider y=205, bottom=265
-    //   Row 3: label y=271 (+6), slider y=289, bottom=349
-    //   Row 4: label y=355 (+6), slider y=373, bottom=433  (<448 ✓, 15 px footer)
-    //
-    //   Col 0: noiseLevel · noiseDecay · noiseRelease · noiseFiltQ
-    //   Col 1: noiseAttack · noiseSustain · noiseFiltFreq · noiseBright
-    {
-        const int nzx  = noiseZoneBounds.getX();           // 665
-        const int nzy  = noiseZoneBounds.getY();           // 50
-        const int colW = noiseZoneBounds.getWidth() / 2;   // 100
-        const int pad  = (colW - kSliderW) / 2;            // 20
-        const int slH  = 60;
-        const int gap  = 6;
-
-        // Combo + its label
-        noiseFiltTypeLabel.setBounds (nzx + 6, nzy + 28, 50, kComboH);
-        noiseFiltTypeCombo.setBounds (nzx + 60, nzy + 28,
-                                      noiseZoneBounds.getWidth() - 66, kComboH);
-
-        const int r1LabelY  = nzy + 53;
-        const int r1SliderY = r1LabelY  + kLabelH;
-        const int r2LabelY  = r1SliderY + slH + gap;
-        const int r2SliderY = r2LabelY  + kLabelH;
-        const int r3LabelY  = r2SliderY + slH + gap;
-        const int r3SliderY = r3LabelY  + kLabelH;
-        const int r4LabelY  = r3SliderY + slH + gap;
-        const int r4SliderY = r4LabelY  + kLabelH;
-
-        // Col 0
-        noiseLevelLabel  .setBounds (nzx,       r1LabelY, colW, kLabelH);
-        noiseLevelSlider .setBounds (nzx + pad, r1SliderY, kSliderW, slH);
-        noiseDecayLabel  .setBounds (nzx,       r2LabelY, colW, kLabelH);
-        noiseDecaySlider .setBounds (nzx + pad, r2SliderY, kSliderW, slH);
-        noiseReleaseLabel.setBounds (nzx,       r3LabelY, colW, kLabelH);
-        noiseReleaseSlider.setBounds(nzx + pad, r3SliderY, kSliderW, slH);
-        noiseFiltQLabel  .setBounds (nzx,       r4LabelY, colW, kLabelH);
-        noiseFiltQSlider .setBounds (nzx + pad, r4SliderY, kSliderW, slH);
-
-        // Col 1
-        noiseAttackLabel  .setBounds (nzx + colW,       r1LabelY, colW, kLabelH);
-        noiseAttackSlider .setBounds (nzx + colW + pad, r1SliderY, kSliderW, slH);
-        noiseSustainLabel .setBounds (nzx + colW,       r2LabelY, colW, kLabelH);
-        noiseSustainSlider.setBounds (nzx + colW + pad, r2SliderY, kSliderW, slH);
-        noiseFiltFreqLabel.setBounds (nzx + colW,       r3LabelY, colW, kLabelH);
-        noiseFiltFreqSlider.setBounds(nzx + colW + pad, r3SliderY, kSliderW, slH);
-        noiseBrightLabel  .setBounds (nzx + colW,       r4LabelY, colW, kLabelH);
-        noiseBrightSlider .setBounds (nzx + colW + pad, r4SliderY, kSliderW, slH);
-    }
-
-    // ── Output strip: single centred slider ───────────────────────────────────
-    //   kOutputW = 95.  sliderH = 280 px.
-    //   label y=86, slider y=104, bottom=384  (64 px footer)
-    {
-        const int ox  = outputZoneBounds.getX();           // 865
-        const int oy  = outputZoneBounds.getY();           // 50
-        const int pad = (outputZoneBounds.getWidth() - kSliderW) / 2;  // 17
-
-        outputGainLabel .setBounds (ox, oy + 36, outputZoneBounds.getWidth(), kLabelH);
-        outputGainSlider.setBounds (ox + pad, oy + 36 + kLabelH, kSliderW, 280);
-    }
 }
 
 // =============================================================================
