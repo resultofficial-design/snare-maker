@@ -80,9 +80,10 @@ private:
 
     // ── Envelope editor (display-only, sits over drum area) ─────────────────
     EnvelopeEditor             envelopeEditor;
+    juce::Rectangle<int>       envEditorFullBounds;   // full-width bounds (set in resized)
 
     // ── Envelope mode buttons (below envelope editor) ────────────────────────
-    enum class EnvMode { Pitch, BodyAmp, NoiseAmp };
+    enum class EnvMode { Pitch, BodyAmp, NoiseAmp, ResonantAmp };
     EnvMode envMode { EnvMode::Pitch };
 
     juce::TextButton bodyPitchBtn { "PITCH" };

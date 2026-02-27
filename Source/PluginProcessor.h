@@ -41,6 +41,7 @@ public:
     FlexibleEnvelope pitchEnvelope;
     FlexibleEnvelope bodyAmpEnvelope;
     FlexibleEnvelope noiseAmpEnvelope;
+    FlexibleEnvelope resonantAmpEnvelope;
     juce::SpinLock   envelopeLock;
 
 private:

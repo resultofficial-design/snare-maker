@@ -138,20 +138,34 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
 {
     activeTab = tab;
 
-    const bool showBody  = (tab == Tab::Body);
-    const bool showNoise = (tab == Tab::Noise);
+    const bool showBody     = (tab == Tab::Body);
+    const bool showNoise    = (tab == Tab::Noise);
+    const bool showResonant = (tab == Tab::Resonant);
 
     // Envelope mode buttons
     bodyPitchBtn.setVisible (showBody);
     bodyAmpBtn  .setVisible (showBody);
     noiseAmpBtn .setVisible (showNoise);
 
-    // Envelope editor only visible for Body / Noise (Transient & Resonant are placeholders)
-    envelopeEditor.setVisible (showBody || showNoise);
+    // Envelope editor visible for Body, Noise, and Resonant
+    envelopeEditor.setVisible (showBody || showNoise || showResonant);
+
+    // Resonant tab: 80% width, shrunk from the right
+    if (showResonant)
+    {
+        auto b = envEditorFullBounds;
+        b.setWidth (b.getWidth() * 4 / 5);
+        envelopeEditor.setBounds (b);
+    }
+    else
+    {
+        envelopeEditor.setBounds (envEditorFullBounds);
+    }
 
     // Default envelope for each tab
-    if (showBody)       setEnvMode (EnvMode::Pitch);
-    else if (showNoise) setEnvMode (EnvMode::NoiseAmp);
+    if (showBody)          setEnvMode (EnvMode::Pitch);
+    else if (showNoise)    setEnvMode (EnvMode::NoiseAmp);
+    else if (showResonant) setEnvMode (EnvMode::ResonantAmp);
 
     repaint();
 }
@@ -182,9 +196,10 @@ void SnareMakerAudioProcessorEditor::setEnvMode (EnvMode mode)
 
     switch (mode)
     {
-        case EnvMode::Pitch:    envelopeEditor.setEnvelope (audioProcessor.pitchEnvelope);    break;
-        case EnvMode::BodyAmp:  envelopeEditor.setEnvelope (audioProcessor.bodyAmpEnvelope);  break;
-        case EnvMode::NoiseAmp: envelopeEditor.setEnvelope (audioProcessor.noiseAmpEnvelope); break;
+        case EnvMode::Pitch:       envelopeEditor.setEnvelope (audioProcessor.pitchEnvelope);       break;
+        case EnvMode::BodyAmp:     envelopeEditor.setEnvelope (audioProcessor.bodyAmpEnvelope);     break;
+        case EnvMode::NoiseAmp:    envelopeEditor.setEnvelope (audioProcessor.noiseAmpEnvelope);    break;
+        case EnvMode::ResonantAmp: envelopeEditor.setEnvelope (audioProcessor.resonantAmpEnvelope); break;
     }
 }
 
@@ -222,8 +237,9 @@ void SnareMakerAudioProcessorEditor::resized()
         const int modeBtnY = drumAreaBounds.getBottom() - envPadBot - btnH;
         // Envelope fills the space between tabs and mode buttons
         const int envH = modeBtnY - envPadBot - envTop;
-        envelopeEditor.setBounds (drumAreaBounds.getX() + envPadX, envTop,
-                                  drumAreaBounds.getWidth() - envPadX * 2, envH);
+        envEditorFullBounds = { drumAreaBounds.getX() + envPadX, envTop,
+                                drumAreaBounds.getWidth() - envPadX * 2, envH };
+        envelopeEditor.setBounds (envEditorFullBounds);
 
         // BODY tab: two buttons side by side
         bodyPitchBtn.setBounds (cx - btnW - btnGap / 2, modeBtnY, btnW, btnH);
@@ -504,11 +520,10 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
 
     paintSnareDrum (g, area);
 
-    // Placeholder for Transient / Resonant tabs
-    if (activeTab == Tab::Transient || activeTab == Tab::Resonant)
+    // Placeholder for Transient tab
+    if (activeTab == Tab::Transient)
     {
-        const juce::Colour accent = (activeTab == Tab::Transient) ? kTransientOrng : kResonantGrn;
-        g.setColour (accent.withAlpha (0.25f));
+        g.setColour (kTransientOrng.withAlpha (0.25f));
         g.setFont (juce::Font (juce::FontOptions{}.withHeight (13.0f).withStyle ("Bold")));
         g.drawText ("COMING SOON",
                     area.getX(), area.getCentreY() + 40,
