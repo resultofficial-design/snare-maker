@@ -30,6 +30,7 @@ juce_generate_juce_header(SnareMaker)
 target_sources(SnareMaker PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
+    Source/EnvelopeEditor.cpp
 )
 
 # ── Compile definitions ───────────────────────────────────────────────────────

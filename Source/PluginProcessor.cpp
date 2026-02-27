@@ -12,7 +12,6 @@ SnareMakerAudioProcessor::SnareMakerAudioProcessor()
     pBodyFreq      = apvts.getRawParameterValue ("bodyFreq");
     pPitchAmount   = apvts.getRawParameterValue ("pitchAmount");
     pPitchDecay    = apvts.getRawParameterValue ("pitchDecay");
-    pPitchCurve    = apvts.getRawParameterValue ("pitchCurve");
     pPhaseOffset   = apvts.getRawParameterValue ("phaseOffset");
 
     // Noise (Phase 1 level + Phase 2b ADSR / filter / brightness)
@@ -28,6 +27,15 @@ SnareMakerAudioProcessor::SnareMakerAudioProcessor()
 
     // Output
     pOutputGain    = apvts.getRawParameterValue ("outputGain");
+
+    // Default 3-point pitch envelope (dynamic N-point)
+    // pitchEnvelope uses default ctor: {0,0}, {0.1,1.0}, {1,0} (pitch sweep)
+
+    // Amplitude envelopes: start at 1.0, decay to 0.0
+    bodyAmpEnvelope = FlexibleEnvelope ({
+        { 0.0f, 1.0f, 0.6f }, { 0.3f, 0.4f, 0.6f }, { 1.0f, 0.0f, 0.0f } });
+    noiseAmpEnvelope = FlexibleEnvelope ({
+        { 0.0f, 1.0f, 0.6f }, { 0.2f, 0.5f, 0.6f }, { 1.0f, 0.0f, 0.0f } });
 }
 
 SnareMakerAudioProcessor::~SnareMakerAudioProcessor() {}
@@ -56,13 +64,9 @@ SnareMakerAudioProcessor::createParameterLayout()
         24.0f, Attr{}.withLabel ("st")));
 
     params.push_back (std::make_unique<APF> (
-        PID { "pitchDecay", 1 }, "Pitch Decay",
+        PID { "pitchDecay", 1 }, "Envelope Time",
         juce::NormalisableRange<float> (1.0f, 500.0f, 0.1f, 0.5f),
         60.0f, Attr{}.withLabel ("ms")));
-
-    params.push_back (std::make_unique<juce::AudioParameterChoice> (
-        juce::ParameterID { "pitchCurve", 1 }, "Pitch Curve",
-        juce::StringArray { "Exponential", "Linear", "Logarithmic" }, 0));
 
     params.push_back (std::make_unique<APF> (
         PID { "phaseOffset", 1 }, "Phase Offset",
@@ -147,6 +151,9 @@ void SnareMakerAudioProcessor::resetVoiceState()
     envTime        = 0.0;
     phase          = 0.0;
 
+    // Pitch envelope hard-stop
+    pitchEnvelope.reset();
+
     // Body declick
     bodyLastOutput = 0.0f;
     bodyFadeSample = 0.0f;
@@ -200,6 +207,9 @@ void SnareMakerAudioProcessor::triggerNote (float phaseOffsetDeg)
     envTime   = 0.0;
     phase     = static_cast<double> (phaseOffsetDeg) / 360.0;
 
+    // Start pitch envelope from the beginning
+    pitchEnvelope.noteOn();
+
     // Retrigger noise ADSR from current level (zero-click: linear attack ramps
     // from wherever noiseEnvLevel currently is, not forced to 0).
     noiseStage = NoiseStage::Attack;
@@ -212,6 +222,9 @@ void SnareMakerAudioProcessor::triggerNote (float phaseOffsetDeg)
 
 void SnareMakerAudioProcessor::releaseNote()
 {
+    // Pitch envelope: no-op (percussive, runs to natural completion)
+    pitchEnvelope.noteOff();
+
     if (noiseStage == NoiseStage::Attack
      || noiseStage == NoiseStage::Decay
      || noiseStage == NoiseStage::Sustain)
@@ -236,6 +249,7 @@ void SnareMakerAudioProcessor::killAll()
 void SnareMakerAudioProcessor::prepareToPlay (double sampleRate, int /*samplesPerBlock*/)
 {
     currentSampleRate = sampleRate;
+    pitchEnvelope.prepare (sampleRate);
     resetVoiceState();
 
     // Initialise output gain smoother.
@@ -272,8 +286,11 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const float bodyFreq        = pBodyFreq->load();
     const float pitchAmount     = pPitchAmount->load();
     const float pitchDecayMs    = pPitchDecay->load();
-    const int   pitchCurveMode  = static_cast<int> (pPitchCurve->load());
     const float phaseOffsetDeg  = pPhaseOffset->load();
+
+    // Lock envelope for the duration of this block (UI may add/remove points)
+    juce::SpinLock::ScopedLockType envLock (envelopeLock);
+    pitchEnvelope.setDuration ((double) pitchDecayMs);
 
     const float noiseLevel      = pNoiseLevel->load();
     const float noiseAttackMs   = pNoiseAttack->load();
@@ -291,10 +308,10 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     const double sr = currentSampleRate;
 
-    // Body
-    const double pitchTau     = std::max (1.0, pitchDecayMs * 0.001 * sr);
-    const double bodyTau      = pitchTau * 2.0;
-    const double bodyStopTime = bodyTau  * 6.0;   // amplitude ≈ −72 dB here
+    // Body amplitude decay: tau = 2× envelope duration, stop at ≈ -72 dB.
+    // (Pitch envelope duration is managed by pitchEnvelope.setDuration above.)
+    const double bodyTau      = std::max (1.0, pitchDecayMs * 0.001 * sr) * 2.0;
+    const double bodyStopTime = bodyTau * 6.0;
 
     // Noise ADSR (all in samples)
     const double attackSamples  = std::max (1.0, noiseAttackMs  * 0.001 * sr);
@@ -355,23 +372,8 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                 const double t = envTime;
                 envTime += 1.0;
 
-                // Pitch envelope shape (Phase 2a – unchanged)
-                double pitchEnv;
-                switch (pitchCurveMode)
-                {
-                    case 0:   // Exponential – fast drop, long tail
-                        pitchEnv = std::exp (-t / pitchTau);
-                        break;
-                    case 1:   // Linear – reaches 0 at 5 × pitchTau
-                        pitchEnv = std::max (0.0, 1.0 - t / (pitchTau * 5.0));
-                        break;
-                    case 2:   // Logarithmic (hyperbolic) – slow fall, long tail
-                        pitchEnv = 1.0 / (1.0 + t / pitchTau);
-                        break;
-                    default:
-                        pitchEnv = std::exp (-t / pitchTau);
-                        break;
-                }
+                // Pitch envelope: stateful per-sample advance
+                const double pitchEnv = pitchEnvelope.getNextSample();
 
                 const double currentFreq = bodyFreq * (1.0 + (freqRatio - 1.0) * pitchEnv);
 
@@ -551,14 +553,58 @@ void SnareMakerAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     auto state = apvts.copyState();
     if (auto xml = state.createXml())
+    {
+        auto saveEnvelope = [&] (const char* tag, const FlexibleEnvelope& env)
+        {
+            auto* el = xml->createNewChildElement (tag);
+            for (const auto& pt : env.points)
+            {
+                auto* ptXml = el->createNewChildElement ("Point");
+                ptXml->setAttribute ("time",  (double) pt.time);
+                ptXml->setAttribute ("value", (double) pt.value);
+                ptXml->setAttribute ("curve", (double) pt.curve);
+            }
+        };
+
+        {
+            juce::SpinLock::ScopedLockType lock (envelopeLock);
+            saveEnvelope ("PitchEnvelope",    pitchEnvelope);
+            saveEnvelope ("BodyAmpEnvelope",  bodyAmpEnvelope);
+            saveEnvelope ("NoiseAmpEnvelope", noiseAmpEnvelope);
+        }
         copyXmlToBinary (*xml, destData);
+    }
 }
 
 void SnareMakerAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
+    {
         if (xml->hasTagName (apvts.state.getType()))
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
+
+        auto loadEnvelope = [&] (const char* tag, FlexibleEnvelope& env)
+        {
+            if (auto* el = xml->getChildByName (tag))
+            {
+                std::vector<EnvelopePoint> pts;
+                for (auto* ptXml : el->getChildIterator())
+                    if (ptXml->hasTagName ("Point"))
+                        pts.push_back ({
+                            (float) ptXml->getDoubleAttribute ("time",  0.0),
+                            (float) ptXml->getDoubleAttribute ("value", 0.0),
+                            (float) ptXml->getDoubleAttribute ("curve", 0.0) });
+
+                if (pts.size() >= 2)
+                    env.points = std::move (pts);
+            }
+        };
+
+        juce::SpinLock::ScopedLockType lock (envelopeLock);
+        loadEnvelope ("PitchEnvelope",    pitchEnvelope);
+        loadEnvelope ("BodyAmpEnvelope",  bodyAmpEnvelope);
+        loadEnvelope ("NoiseAmpEnvelope", noiseAmpEnvelope);
+    }
 }
 
 // =============================================================================

@@ -44,6 +44,11 @@ namespace
     constexpr int kTextBoxH = 18;
     constexpr int kTextBoxW = 74;
     constexpr int kComboH   = 22;
+
+    // ── Tab geometry (Phase 6-1) ────────────────────────────────────────────────
+    constexpr int kTabW     = 70;
+    constexpr int kTabH     = 18;
+    constexpr int kTabGap   = 6;   // gap between the two tabs
 }
 
 // =============================================================================
@@ -117,18 +122,12 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     setupSlider (bodyFreqSlider,    bodyFreqLabel,    "BODY FREQ",   kPitchBlue);
     setupSlider (phaseOffsetSlider, phaseOffsetLabel, "PHASE OFF",   kPitchBlue);
     setupSlider (pitchAmountSlider, pitchAmountLabel, "PITCH AMT",   kPitchBlue);
-    setupSlider (pitchDecaySlider,  pitchDecayLabel,  "PITCH DECAY", kPitchBlue);
-
-    pitchCurveCombo.addItem ("Exponential", 1);
-    pitchCurveCombo.addItem ("Linear",      2);
-    pitchCurveCombo.addItem ("Logarithmic", 3);
-    setupCombo (pitchCurveCombo, pitchCurveLabel, "CURVE", kPitchBlue);
+    setupSlider (pitchDecaySlider,  pitchDecayLabel,  "ENV TIME",    kPitchBlue);
 
     bodyFreqAttachment    = std::make_unique<SA> (apvts, "bodyFreq",    bodyFreqSlider);
     phaseOffsetAttachment = std::make_unique<SA> (apvts, "phaseOffset", phaseOffsetSlider);
     pitchAmountAttachment = std::make_unique<SA> (apvts, "pitchAmount", pitchAmountSlider);
     pitchDecayAttachment  = std::make_unique<SA> (apvts, "pitchDecay",  pitchDecaySlider);
-    pitchCurveAttachment  = std::make_unique<CA> (apvts, "pitchCurve",  pitchCurveCombo);
 
     // ── Noise controls ─────────────────────────────────────────────────────────
     setupSlider (noiseLevelSlider,   noiseLevelLabel,   "LEVEL",     kNoiseRed);
@@ -159,12 +158,100 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     setupSlider (outputGainSlider, outputGainLabel, "OUTPUT", kOutTeal);
     outputGainAttachment = std::make_unique<SA> (apvts, "outputGain", outputGainSlider);
 
+    // ── Envelope editor (overlays drum centre area) ─────────────────────────
+    envelopeEditor.connectToParameters (apvts, audioProcessor.pitchEnvelope,
+                                        audioProcessor.envelopeLock);
+    addAndMakeVisible (envelopeEditor);
+
+    // ── Envelope mode buttons ─────────────────────────────────────────────────
+    bodyPitchBtn.onClick = [this] { setEnvMode (EnvMode::Pitch); };
+    bodyAmpBtn  .onClick = [this] { setEnvMode (EnvMode::BodyAmp); };
+    noiseAmpBtn .onClick = [this] { setEnvMode (EnvMode::NoiseAmp); };
+    addAndMakeVisible (bodyPitchBtn);
+    addAndMakeVisible (bodyAmpBtn);
+    addAndMakeVisible (noiseAmpBtn);
+
+    // Size first so resized() computes all bounds before visibility/styling
     setSize (kWinW, kWinH);
+
+    // Now that bounds exist, set tab + envelope mode
+    setActiveTab (Tab::Body);
 }
 
 SnareMakerAudioProcessorEditor::~SnareMakerAudioProcessorEditor()
 {
     setLookAndFeel (nullptr);
+}
+
+// =============================================================================
+// setActiveTab  (Phase 6-1)
+// =============================================================================
+
+void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
+{
+    activeTab = tab;
+
+    const bool showBody  = (tab == Tab::Body);
+    const bool showNoise = (tab == Tab::Noise);
+
+    // Body controls
+    bodyFreqSlider   .setVisible (showBody);   bodyFreqLabel   .setVisible (showBody);
+    phaseOffsetSlider.setVisible (showBody);   phaseOffsetLabel.setVisible (showBody);
+    pitchAmountSlider.setVisible (showBody);   pitchAmountLabel.setVisible (showBody);
+    pitchDecaySlider .setVisible (showBody);   pitchDecayLabel .setVisible (showBody);
+
+    // Noise controls
+    noiseLevelSlider   .setVisible (showNoise);  noiseLevelLabel   .setVisible (showNoise);
+    noiseAttackSlider  .setVisible (showNoise);  noiseAttackLabel  .setVisible (showNoise);
+    noiseDecaySlider   .setVisible (showNoise);  noiseDecayLabel   .setVisible (showNoise);
+    noiseSustainSlider .setVisible (showNoise);  noiseSustainLabel .setVisible (showNoise);
+    noiseReleaseSlider .setVisible (showNoise);  noiseReleaseLabel .setVisible (showNoise);
+    noiseFiltFreqSlider.setVisible (showNoise);  noiseFiltFreqLabel.setVisible (showNoise);
+    noiseFiltQSlider   .setVisible (showNoise);  noiseFiltQLabel   .setVisible (showNoise);
+    noiseBrightSlider  .setVisible (showNoise);  noiseBrightLabel  .setVisible (showNoise);
+    noiseFiltTypeCombo .setVisible (showNoise);  noiseFiltTypeLabel.setVisible (showNoise);
+
+    // Envelope mode buttons
+    bodyPitchBtn.setVisible (showBody);
+    bodyAmpBtn  .setVisible (showBody);
+    noiseAmpBtn .setVisible (showNoise);
+
+    // Default envelope for each tab
+    setEnvMode (showBody ? EnvMode::Pitch : EnvMode::NoiseAmp);
+
+    repaint();
+}
+
+// =============================================================================
+// setEnvMode
+// =============================================================================
+
+void SnareMakerAudioProcessorEditor::setEnvMode (EnvMode mode)
+{
+    envMode = mode;
+
+    auto styleBtn = [&] (juce::TextButton& btn, bool active, juce::Colour accent)
+    {
+        btn.setColour (juce::TextButton::buttonColourId,
+                       active ? accent : juce::Colour (0xff181828));
+        btn.setColour (juce::TextButton::textColourOffId,
+                       active ? juce::Colours::white : juce::Colour (0xff8888aa));
+    };
+
+    styleBtn (bodyPitchBtn, mode == EnvMode::Pitch,    kPitchBlue);
+    styleBtn (bodyAmpBtn,   mode == EnvMode::BodyAmp,  kPitchBlue);
+    styleBtn (noiseAmpBtn,  mode == EnvMode::NoiseAmp, kNoiseRed);
+
+    bodyPitchBtn.repaint();
+    bodyAmpBtn  .repaint();
+    noiseAmpBtn .repaint();
+
+    switch (mode)
+    {
+        case EnvMode::Pitch:    envelopeEditor.setEnvelope (audioProcessor.pitchEnvelope);    break;
+        case EnvMode::BodyAmp:  envelopeEditor.setEnvelope (audioProcessor.bodyAmpEnvelope);  break;
+        case EnvMode::NoiseAmp: envelopeEditor.setEnvelope (audioProcessor.noiseAmpEnvelope); break;
+    }
 }
 
 // =============================================================================
@@ -217,13 +304,40 @@ void SnareMakerAudioProcessorEditor::resized()
     const int mainTop = kHeaderH;
     const int roomTop = kWinH - kRoomH;
 
+    // ── Tab hit-test rectangles (centred in header) ─────────────────────────
+    {
+        const int totalTabW = kTabW * 2 + kTabGap;
+        const int tabX = (kWinW - totalTabW) / 2;
+        const int tabY = kHeaderH - kTabH - 4;   // 4px above header bottom edge
+        bodyTabBounds  = { tabX,                    tabY, kTabW, kTabH };
+        noiseTabBounds = { tabX + kTabW + kTabGap,  tabY, kTabW, kTabH };
+    }
+
     bodyZoneBounds   = { 0,                          mainTop, kBodyW,   kMainH };
     drumAreaBounds   = { kBodyW,                     mainTop, kDrumW,   kMainH };
     noiseZoneBounds  = { kBodyW + kDrumW,            mainTop, kNoiseW,  kMainH };
     outputZoneBounds = { kBodyW + kDrumW + kNoiseW,  mainTop, kOutputW, kMainH };
     roomZoneBounds   = { 0,                          roomTop, kWinW,    kRoomH };
 
-    // ── Body zone: pitchCurve combo + 2×2 slider grid ─────────────────────────
+    // ── Envelope editor (inset inside drum centre area) ────────────────────────
+    envelopeEditor.setBounds (drumAreaBounds.reduced (20, 40));
+
+    // ── Envelope mode buttons (centred below envelope editor) ────────────────
+    {
+        constexpr int btnW = 70, btnH = 22, btnGap = 8;
+        const auto envB = envelopeEditor.getBounds();
+        const int  btnY = envB.getBottom() + 6;
+        const int  cx   = drumAreaBounds.getCentreX();
+
+        // BODY tab: two buttons side by side
+        bodyPitchBtn.setBounds (cx - btnW - btnGap / 2, btnY, btnW, btnH);
+        bodyAmpBtn  .setBounds (cx + btnGap / 2,        btnY, btnW, btnH);
+
+        // NOISE tab: single centred button
+        noiseAmpBtn .setBounds (cx - btnW / 2,          btnY, btnW, btnH);
+    }
+
+    // ── Body zone: 2×2 slider grid ─────────────────────────
     //
     //   kBodyW = 195.  2 cols × 97 px each.  sliderH = 145 px.
     //
@@ -238,15 +352,10 @@ void SnareMakerAudioProcessorEditor::resized()
         const int by    = bodyZoneBounds.getY();   // 50
         const int colW  = bodyZoneBounds.getWidth() / 2;   // 97
         const int pad   = (colW - kSliderW) / 2;           // 18
-        const int slH   = 145;
+        const int slH   = 155;
         const int gap   = 8;
 
-        // Combo + its label
-        pitchCurveLabel.setBounds (bx + 6, by + 28, 50, kComboH);
-        pitchCurveCombo.setBounds (bx + 60, by + 28,
-                                   bodyZoneBounds.getWidth() - 66, kComboH);
-
-        const int r1LabelY  = by + 53;
+        const int r1LabelY  = by + 30;
         const int r1SliderY = r1LabelY + kLabelH;
         const int r2LabelY  = r1SliderY + slH + gap;
         const int r2SliderY = r2LabelY  + kLabelH;
@@ -356,6 +465,18 @@ void SnareMakerAudioProcessorEditor::mouseMove (const juce::MouseEvent& e)
 
 void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
 {
+    // ── Tab click (Phase 6-1) ────────────────────────────────────────────────
+    if (bodyTabBounds.contains (e.getPosition()) && activeTab != Tab::Body)
+    {
+        setActiveTab (Tab::Body);
+        return;
+    }
+    if (noiseTabBounds.contains (e.getPosition()) && activeTab != Tab::Noise)
+    {
+        setActiveTab (Tab::Noise);
+        return;
+    }
+
     const Zone z = zoneAt (e.getPosition());
     if (z != Zone::None && z != activeZone) { activeZone = z; repaint(); }
 }
@@ -406,10 +527,37 @@ void SnareMakerAudioProcessorEditor::paintHeader (juce::Graphics& g) const
     g.setFont (juce::Font (juce::FontOptions{}.withHeight (22.0f).withStyle ("Bold")));
     g.drawText ("SNARE MAKER", 0, 2, w, 30, juce::Justification::centred, false);
 
-    g.setColour (kTextDim);
-    g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.0f)));
-    g.drawText ("PERCUSSIVE SYNTHESIZER", 0, 31, w, 13,
-                juce::Justification::centred, false);
+    // Tabs replace the old tagline
+    paintTabs (g);
+}
+
+// =============================================================================
+// paintTabs  (Phase 6-1)
+// =============================================================================
+
+void SnareMakerAudioProcessorEditor::paintTabs (juce::Graphics& g) const
+{
+    auto drawTab = [&] (juce::Rectangle<int> bounds, const juce::String& text,
+                        juce::Colour accent, bool isActive)
+    {
+        const float alpha = isActive ? 1.0f : 0.35f;
+        g.setColour (accent.withAlpha (alpha));
+        g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
+        g.drawText (text, bounds, juce::Justification::centred, false);
+
+        // Active underline
+        if (isActive)
+        {
+            g.setColour (accent);
+            g.fillRoundedRectangle ((float) bounds.getX() + 8.0f,
+                                    (float) bounds.getBottom() - 2.0f,
+                                    (float) bounds.getWidth() - 16.0f,
+                                    2.0f, 1.0f);
+        }
+    };
+
+    drawTab (bodyTabBounds,  "BODY",  kPitchBlue, activeTab == Tab::Body);
+    drawTab (noiseTabBounds, "NOISE", kNoiseRed,  activeTab == Tab::Noise);
 }
 
 // =============================================================================

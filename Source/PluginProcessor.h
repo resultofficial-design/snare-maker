@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
-#include "BiquadFilter.h"   // Phase 2b: noise filter (header-only, no heap alloc)
+#include "BiquadFilter.h"      // Phase 2b: noise filter (header-only, no heap alloc)
+#include "FlexibleEnvelope.h"  // Phase 7-1: dynamic N-point pitch envelope
 
 class SnareMakerAudioProcessor : public juce::AudioProcessor
 {
@@ -35,6 +36,13 @@ public:
     // ── Public state ───────────────────────────────────────────────────────
     juce::AudioProcessorValueTreeState apvts;
 
+    // Dynamic N-point envelopes (shared with EnvelopeEditor for direct access).
+    // Points are edited by the UI; audio thread reads under envelopeLock.
+    FlexibleEnvelope pitchEnvelope;
+    FlexibleEnvelope bodyAmpEnvelope;
+    FlexibleEnvelope noiseAmpEnvelope;
+    juce::SpinLock   envelopeLock;
+
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
@@ -44,7 +52,6 @@ private:
     std::atomic<float>* pBodyFreq      { nullptr };
     std::atomic<float>* pPitchAmount   { nullptr };
     std::atomic<float>* pPitchDecay    { nullptr };
-    std::atomic<float>* pPitchCurve    { nullptr };
     std::atomic<float>* pPhaseOffset   { nullptr };
 
     // Noise level (Phase 1)

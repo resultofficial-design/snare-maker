@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "EnvelopeEditor.h"
 
 // =============================================================================
 // SnareMakerAudioProcessorEditor  –  Phase 3a-2 (complete)
@@ -18,9 +19,9 @@
 //  │  ROOM / SPACE ZONE  (full width 960 px)                  72 px │
 //  └──────────────────────────────────────────────────────────────────┘
 //
-// Body zone  (195 px, 2 cols × 2 rows + pitchCurve combo in header):
+// Body zone  (195 px, 2 cols × 2 rows):
 //   Col 0: bodyFreq (row 1), pitchAmount (row 2)
-//   Col 1: phaseOffset (row 1), pitchDecay (row 2)
+//   Col 1: phaseOffset (row 1), pitchDecay / ENV TIME (row 2)
 //
 // Noise zone (200 px, 2 cols × 4 rows + noiseFiltType combo in header):
 //   Col 0: noiseLevel · noiseDecay · noiseRelease · noiseFiltQ
@@ -55,6 +56,17 @@ private:
                                juce::Slider&) override;
     };
 
+    // ── Top-level tab (Phase 6-1) ───────────────────────────────────────────
+    enum class Tab { Body, Noise };
+    Tab activeTab  { Tab::Body };
+    Tab hoveredTab { Tab::Body };   // only for paint; no separate "none" needed
+
+    juce::Rectangle<int> bodyTabBounds;
+    juce::Rectangle<int> noiseTabBounds;
+
+    void setActiveTab (Tab tab);    // show/hide controls + repaint
+    void paintTabs    (juce::Graphics&) const;
+
     // ── Zone identifiers ─────────────────────────────────────────────────────
     enum class Zone { None, Body, Noise, Output, Room };
     Zone hoveredZone { Zone::None };
@@ -73,12 +85,24 @@ private:
     SnareMakerAudioProcessor& audioProcessor;
     SnareLookAndFeel           lnf;
 
+    // ── Envelope editor (display-only, sits over drum area) ─────────────────
+    EnvelopeEditor             envelopeEditor;
+
+    // ── Envelope mode buttons (below envelope editor) ────────────────────────
+    enum class EnvMode { Pitch, BodyAmp, NoiseAmp };
+    EnvMode envMode { EnvMode::Pitch };
+
+    juce::TextButton bodyPitchBtn { "PITCH" };
+    juce::TextButton bodyAmpBtn   { "AMP" };
+    juce::TextButton noiseAmpBtn  { "AMP" };
+
+    void setEnvMode (EnvMode mode);
+
     // ── Body controls ─────────────────────────────────────────────────────────
     juce::Slider   bodyFreqSlider;      juce::Label bodyFreqLabel;
     juce::Slider   phaseOffsetSlider;   juce::Label phaseOffsetLabel;
     juce::Slider   pitchAmountSlider;   juce::Label pitchAmountLabel;
     juce::Slider   pitchDecaySlider;    juce::Label pitchDecayLabel;
-    juce::ComboBox pitchCurveCombo;     juce::Label pitchCurveLabel;
 
     // ── Noise controls ────────────────────────────────────────────────────────
     juce::Slider   noiseLevelSlider;    juce::Label noiseLevelLabel;
@@ -102,7 +126,6 @@ private:
     std::unique_ptr<SA> phaseOffsetAttachment;
     std::unique_ptr<SA> pitchAmountAttachment;
     std::unique_ptr<SA> pitchDecayAttachment;
-    std::unique_ptr<CA> pitchCurveAttachment;
 
     std::unique_ptr<SA> noiseLevelAttachment;
     std::unique_ptr<SA> noiseAttackAttachment;
