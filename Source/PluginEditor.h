@@ -10,12 +10,11 @@
 //
 //  ┌──────────────────────────────────────────────────────────────────┐
 //  │  HEADER  (plugin name + BODY/NOISE tabs)                  50 px │
-//  ├──────────┬──────────────────────────┬────────────┬─────────────┤
-//  │          │  ENVELOPE EDITOR         │            │             │
-//  │  BODY    │  + PITCH/AMP buttons     │   NOISE    │   OUTPUT   │
-//  │  195 px  │        470 px            │   200 px   │    95 px   │
-//  │          │                          │            │             │  398 px
-//  ├──────────┴──────────────────────────┴────────────┴─────────────┤
+//  ├──────────────────────────────────────────────────┬─────────────┤
+//  │  ENVELOPE EDITOR + PITCH/AMP buttons             │   OUTPUT   │
+//  │  (drum visual behind)                            │    95 px   │
+//  │                                                  │             │  398 px
+//  ├──────────────────────────────────────────────────┴─────────────┤
 //  │  ROOM / SPACE ZONE  (full width 960 px)                  72 px │
 //  └──────────────────────────────────────────────────────────────────┘
 // =============================================================================
@@ -46,26 +45,26 @@ private:
                                juce::Slider&) override;
     };
 
-    // ── Top-level tab (Phase 6-1) ───────────────────────────────────────────
-    enum class Tab { Body, Noise };
+    // ── Top-level tabs ──────────────────────────────────────────────────────
+    enum class Tab { Transient, Body, Resonant, Noise };
     Tab activeTab  { Tab::Body };
-    Tab hoveredTab { Tab::Body };   // only for paint; no separate "none" needed
+    Tab hoveredTab { Tab::Body };
 
+    juce::Rectangle<int> transientTabBounds;
     juce::Rectangle<int> bodyTabBounds;
+    juce::Rectangle<int> resonantTabBounds;
     juce::Rectangle<int> noiseTabBounds;
 
     void setActiveTab (Tab tab);    // show/hide controls + repaint
     void paintTabs    (juce::Graphics&) const;
 
     // ── Zone identifiers ─────────────────────────────────────────────────────
-    enum class Zone { None, Body, Noise, Output, Room };
+    enum class Zone { None, Output, Room };
     Zone hoveredZone { Zone::None };
-    Zone activeZone  { Zone::Body };
+    Zone activeZone  { Zone::None };
 
     // ── Zone rectangles (set in resized()) ───────────────────────────────────
-    juce::Rectangle<int> bodyZoneBounds;
     juce::Rectangle<int> drumAreaBounds;
-    juce::Rectangle<int> noiseZoneBounds;
     juce::Rectangle<int> outputZoneBounds;
     juce::Rectangle<int> roomZoneBounds;
 

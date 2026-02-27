@@ -21,27 +21,23 @@ namespace
     const juce::Colour kPitchBlue  { 0xff4a9eff };
     const juce::Colour kNoiseRed   { 0xffe94560 };
     const juce::Colour kOutTeal    { 0xff00d4aa };
-    const juce::Colour kRoomPurple { 0xffaa55ff };
+    const juce::Colour kRoomPurple    { 0xffaa55ff };
+    const juce::Colour kTransientOrng { 0xffffaa33 };
+    const juce::Colour kResonantGrn   { 0xff55dd77 };
 
     // ── Window / section widths ────────────────────────────────────────────────
-    //
-    //   kBodyW + kDrumW + kNoiseW + kOutputW = kWinW
-    //   195    + 470    + 200     + 95       = 960
-    //
     constexpr int kWinW    = 960;
     constexpr int kWinH    = 520;
     constexpr int kHeaderH = 50;
     constexpr int kRoomH   = 72;
-    constexpr int kBodyW   = 195;
-    constexpr int kNoiseW  = 200;
     constexpr int kOutputW = 95;
-    constexpr int kDrumW   = kWinW - kBodyW - kNoiseW - kOutputW;  // 470
     constexpr int kMainH   = kWinH - kHeaderH - kRoomH;            // 398
 
-    // ── Tab geometry (Phase 6-1) ────────────────────────────────────────────────
+    // ── Tab geometry ──────────────────────────────────────────────────────────
+    constexpr int kNumTabs  = 4;
     constexpr int kTabW     = 70;
     constexpr int kTabH     = 18;
-    constexpr int kTabGap   = 6;   // gap between the two tabs
+    constexpr int kTabGap   = 6;
 }
 
 // =============================================================================
@@ -150,8 +146,12 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     bodyAmpBtn  .setVisible (showBody);
     noiseAmpBtn .setVisible (showNoise);
 
+    // Envelope editor only visible for Body / Noise (Transient & Resonant are placeholders)
+    envelopeEditor.setVisible (showBody || showNoise);
+
     // Default envelope for each tab
-    setEnvMode (showBody ? EnvMode::Pitch : EnvMode::NoiseAmp);
+    if (showBody)       setEnvMode (EnvMode::Pitch);
+    else if (showNoise) setEnvMode (EnvMode::NoiseAmp);
 
     repaint();
 }
@@ -197,37 +197,40 @@ void SnareMakerAudioProcessorEditor::resized()
     const int mainTop = kHeaderH;
     const int roomTop = kWinH - kRoomH;
 
-    // ── Tab hit-test rectangles (centred in header) ─────────────────────────
-    {
-        const int totalTabW = kTabW * 2 + kTabGap;
-        const int tabX = (kWinW - totalTabW) / 2;
-        const int tabY = kHeaderH - kTabH - 4;   // 4px above header bottom edge
-        bodyTabBounds  = { tabX,                    tabY, kTabW, kTabH };
-        noiseTabBounds = { tabX + kTabW + kTabGap,  tabY, kTabW, kTabH };
-    }
+    drumAreaBounds   = { 0,                mainTop, kWinW - kOutputW, kMainH };
+    outputZoneBounds = { kWinW - kOutputW, mainTop, kOutputW,         kMainH };
+    roomZoneBounds   = { 0,                roomTop, kWinW,            kRoomH };
 
-    bodyZoneBounds   = { 0,                          mainTop, kBodyW,   kMainH };
-    drumAreaBounds   = { kBodyW,                     mainTop, kDrumW,   kMainH };
-    noiseZoneBounds  = { kBodyW + kDrumW,            mainTop, kNoiseW,  kMainH };
-    outputZoneBounds = { kBodyW + kDrumW + kNoiseW,  mainTop, kOutputW, kMainH };
-    roomZoneBounds   = { 0,                          roomTop, kWinW,    kRoomH };
-
-    // ── Envelope editor (inset inside drum centre area) ────────────────────────
-    envelopeEditor.setBounds (drumAreaBounds.reduced (20, 40));
-
-    // ── Envelope mode buttons (centred below envelope editor) ────────────────
+    // ── Layout: [BODY][NOISE] tabs → EnvelopeEditor → [PITCH][AMP] buttons ──
     {
         constexpr int btnW = 70, btnH = 22, btnGap = 8;
-        const auto envB = envelopeEditor.getBounds();
-        const int  btnY = envB.getBottom() + 6;
-        const int  cx   = drumAreaBounds.getCentreX();
+        constexpr int envPadX = 20, envPadTop = 6, envPadBot = 6;
+        const int cx = drumAreaBounds.getCentreX();
+
+        // Tabs directly above envelope editor
+        const int tabY = mainTop + envPadTop;
+        const int totalTabW = kTabW * kNumTabs + kTabGap * (kNumTabs - 1);
+        const int tabX = cx - totalTabW / 2;
+        transientTabBounds = { tabX,                                      tabY, kTabW, kTabH };
+        bodyTabBounds      = { tabX + (kTabW + kTabGap),                  tabY, kTabW, kTabH };
+        resonantTabBounds  = { tabX + (kTabW + kTabGap) * 2,             tabY, kTabW, kTabH };
+        noiseTabBounds     = { tabX + (kTabW + kTabGap) * 3,             tabY, kTabW, kTabH };
+
+        // Envelope editor below tabs
+        const int envTop = tabY + kTabH + envPadTop;
+        // Mode buttons below envelope editor
+        const int modeBtnY = drumAreaBounds.getBottom() - envPadBot - btnH;
+        // Envelope fills the space between tabs and mode buttons
+        const int envH = modeBtnY - envPadBot - envTop;
+        envelopeEditor.setBounds (drumAreaBounds.getX() + envPadX, envTop,
+                                  drumAreaBounds.getWidth() - envPadX * 2, envH);
 
         // BODY tab: two buttons side by side
-        bodyPitchBtn.setBounds (cx - btnW - btnGap / 2, btnY, btnW, btnH);
-        bodyAmpBtn  .setBounds (cx + btnGap / 2,        btnY, btnW, btnH);
+        bodyPitchBtn.setBounds (cx - btnW - btnGap / 2, modeBtnY, btnW, btnH);
+        bodyAmpBtn  .setBounds (cx + btnGap / 2,        modeBtnY, btnW, btnH);
 
         // NOISE tab: single centred button
-        noiseAmpBtn .setBounds (cx - btnW / 2,          btnY, btnW, btnH);
+        noiseAmpBtn .setBounds (cx - btnW / 2,          modeBtnY, btnW, btnH);
     }
 
 }
@@ -239,8 +242,6 @@ void SnareMakerAudioProcessorEditor::resized()
 SnareMakerAudioProcessorEditor::Zone
 SnareMakerAudioProcessorEditor::zoneAt (juce::Point<int> pos) const noexcept
 {
-    if (bodyZoneBounds.contains   (pos)) return Zone::Body;
-    if (noiseZoneBounds.contains  (pos)) return Zone::Noise;
     if (outputZoneBounds.contains (pos)) return Zone::Output;
     if (roomZoneBounds.contains   (pos)) return Zone::Room;
     return Zone::None;
@@ -258,17 +259,17 @@ void SnareMakerAudioProcessorEditor::mouseMove (const juce::MouseEvent& e)
 
 void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
 {
-    // ── Tab click (Phase 6-1) ────────────────────────────────────────────────
-    if (bodyTabBounds.contains (e.getPosition()) && activeTab != Tab::Body)
+    // ── Tab clicks ──────────────────────────────────────────────────────────
+    auto tryTab = [&] (juce::Rectangle<int> bounds, Tab tab)
     {
-        setActiveTab (Tab::Body);
-        return;
-    }
-    if (noiseTabBounds.contains (e.getPosition()) && activeTab != Tab::Noise)
-    {
-        setActiveTab (Tab::Noise);
-        return;
-    }
+        if (bounds.contains (e.getPosition()) && activeTab != tab)
+        { setActiveTab (tab); return true; }
+        return false;
+    };
+    if (tryTab (transientTabBounds, Tab::Transient)) return;
+    if (tryTab (bodyTabBounds,      Tab::Body))      return;
+    if (tryTab (resonantTabBounds,  Tab::Resonant))  return;
+    if (tryTab (noiseTabBounds,     Tab::Noise))     return;
 
     const Zone z = zoneAt (e.getPosition());
     if (z != Zone::None && z != activeZone) { activeZone = z; repaint(); }
@@ -289,13 +290,12 @@ void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
 
     paintHeader (g);
 
-    paintZone (g, bodyZoneBounds,   Zone::Body,   "BODY",   kPitchBlue,  {}, true);
-    paintZone (g, noiseZoneBounds,  Zone::Noise,  "NOISE",  kNoiseRed,   {}, true);
     paintZone (g, outputZoneBounds, Zone::Output, "OUTPUT", kOutTeal,    {}, true);
     paintZone (g, roomZoneBounds,   Zone::Room,   "ROOM",   kRoomPurple,
                { "Reverb  ·  Pre-Delay  ·  Size  ·  Damping" });
 
     paintDrumArea (g, drumAreaBounds);
+    paintTabs (g);
 }
 
 // =============================================================================
@@ -320,8 +320,6 @@ void SnareMakerAudioProcessorEditor::paintHeader (juce::Graphics& g) const
     g.setFont (juce::Font (juce::FontOptions{}.withHeight (22.0f).withStyle ("Bold")));
     g.drawText ("SNARE MAKER", 0, 2, w, 30, juce::Justification::centred, false);
 
-    // Tabs replace the old tagline
-    paintTabs (g);
 }
 
 // =============================================================================
@@ -349,8 +347,10 @@ void SnareMakerAudioProcessorEditor::paintTabs (juce::Graphics& g) const
         }
     };
 
-    drawTab (bodyTabBounds,  "BODY",  kPitchBlue, activeTab == Tab::Body);
-    drawTab (noiseTabBounds, "NOISE", kNoiseRed,  activeTab == Tab::Noise);
+    drawTab (transientTabBounds, "TRANSIENT", kTransientOrng, activeTab == Tab::Transient);
+    drawTab (bodyTabBounds,      "BODY",      kPitchBlue,     activeTab == Tab::Body);
+    drawTab (resonantTabBounds,  "RESONANT",  kResonantGrn,   activeTab == Tab::Resonant);
+    drawTab (noiseTabBounds,     "NOISE",     kNoiseRed,      activeTab == Tab::Noise);
 }
 
 // =============================================================================
@@ -466,6 +466,17 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
     g.fillRect (area.getRight() - 1, area.getY(), 1, area.getHeight());
 
     paintSnareDrum (g, area);
+
+    // Placeholder for Transient / Resonant tabs
+    if (activeTab == Tab::Transient || activeTab == Tab::Resonant)
+    {
+        const juce::Colour accent = (activeTab == Tab::Transient) ? kTransientOrng : kResonantGrn;
+        g.setColour (accent.withAlpha (0.25f));
+        g.setFont (juce::Font (juce::FontOptions{}.withHeight (13.0f).withStyle ("Bold")));
+        g.drawText ("COMING SOON",
+                    area.getX(), area.getCentreY() + 40,
+                    area.getWidth(), 20, juce::Justification::centred, false);
+    }
 
     g.setColour (kTextDim);
     g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.0f)));
