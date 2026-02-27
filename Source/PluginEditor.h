@@ -55,6 +55,10 @@ private:
     juce::Rectangle<int> resonantTabBounds;
     juce::Rectangle<int> noiseTabBounds;
 
+    bool tabEnabled[4] { true, true, true, true };   // Transient, Body, Resonant, Noise
+    bool& tabEnabledFor (Tab tab)       { return tabEnabled[static_cast<int>(tab)]; }
+    bool  tabEnabledFor (Tab tab) const { return tabEnabled[static_cast<int>(tab)]; }
+
     void setActiveTab (Tab tab);    // show/hide controls + repaint
     void paintTabs    (juce::Graphics&) const;
 

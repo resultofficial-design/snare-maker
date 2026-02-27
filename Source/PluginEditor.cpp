@@ -259,10 +259,38 @@ void SnareMakerAudioProcessorEditor::mouseMove (const juce::MouseEvent& e)
 
 void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
 {
-    // ── Tab clicks ──────────────────────────────────────────────────────────
+    // ── Right-click: toggle tab enabled state ──────────────────────────────
+    if (e.mods.isPopupMenu())
+    {
+        auto tryToggle = [&] (juce::Rectangle<int> bounds, Tab tab)
+        {
+            if (bounds.contains (e.getPosition()))
+            {
+                tabEnabledFor (tab) = !tabEnabledFor (tab);
+
+                // If we just disabled the active tab, jump to the next enabled one
+                if (!tabEnabledFor (tab) && activeTab == tab)
+                {
+                    constexpr Tab order[] = { Tab::Transient, Tab::Body, Tab::Resonant, Tab::Noise };
+                    for (auto t : order)
+                        if (tabEnabledFor (t)) { setActiveTab (t); break; }
+                }
+
+                repaint();
+                return true;
+            }
+            return false;
+        };
+        if (tryToggle (transientTabBounds, Tab::Transient)) return;
+        if (tryToggle (bodyTabBounds,      Tab::Body))      return;
+        if (tryToggle (resonantTabBounds,  Tab::Resonant))  return;
+        if (tryToggle (noiseTabBounds,     Tab::Noise))     return;
+    }
+
+    // ── Left-click: switch active tab (only if enabled) ─────────────────────
     auto tryTab = [&] (juce::Rectangle<int> bounds, Tab tab)
     {
-        if (bounds.contains (e.getPosition()) && activeTab != tab)
+        if (bounds.contains (e.getPosition()) && activeTab != tab && tabEnabledFor (tab))
         { setActiveTab (tab); return true; }
         return false;
     };
@@ -329,17 +357,18 @@ void SnareMakerAudioProcessorEditor::paintHeader (juce::Graphics& g) const
 void SnareMakerAudioProcessorEditor::paintTabs (juce::Graphics& g) const
 {
     auto drawTab = [&] (juce::Rectangle<int> bounds, const juce::String& text,
-                        juce::Colour accent, bool isActive)
+                        juce::Colour accent, bool isActive, bool enabled)
     {
-        const float alpha = isActive ? 1.0f : 0.35f;
-        g.setColour (accent.withAlpha (alpha));
+        const juce::Colour col = enabled ? accent : accent.withSaturation (0.0f).withAlpha (0.18f);
+        const float alpha = isActive ? (enabled ? 1.0f : 0.30f) : (enabled ? 0.35f : 0.12f);
+        g.setColour (col.withAlpha (alpha));
         g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
         g.drawText (text, bounds, juce::Justification::centred, false);
 
         // Active underline
         if (isActive)
         {
-            g.setColour (accent);
+            g.setColour (enabled ? accent : accent.withSaturation (0.0f).withAlpha (0.20f));
             g.fillRoundedRectangle ((float) bounds.getX() + 8.0f,
                                     (float) bounds.getBottom() - 2.0f,
                                     (float) bounds.getWidth() - 16.0f,
@@ -347,10 +376,10 @@ void SnareMakerAudioProcessorEditor::paintTabs (juce::Graphics& g) const
         }
     };
 
-    drawTab (transientTabBounds, "TRANSIENT", kTransientOrng, activeTab == Tab::Transient);
-    drawTab (bodyTabBounds,      "BODY",      kPitchBlue,     activeTab == Tab::Body);
-    drawTab (resonantTabBounds,  "RESONANT",  kResonantGrn,   activeTab == Tab::Resonant);
-    drawTab (noiseTabBounds,     "NOISE",     kNoiseRed,      activeTab == Tab::Noise);
+    drawTab (transientTabBounds, "TRANSIENT", kTransientOrng, activeTab == Tab::Transient, tabEnabledFor (Tab::Transient));
+    drawTab (bodyTabBounds,      "BODY",      kPitchBlue,     activeTab == Tab::Body,      tabEnabledFor (Tab::Body));
+    drawTab (resonantTabBounds,  "RESONANT",  kResonantGrn,   activeTab == Tab::Resonant,  tabEnabledFor (Tab::Resonant));
+    drawTab (noiseTabBounds,     "NOISE",     kNoiseRed,      activeTab == Tab::Noise,     tabEnabledFor (Tab::Noise));
 }
 
 // =============================================================================
