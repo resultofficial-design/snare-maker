@@ -38,6 +38,9 @@ namespace
     constexpr int kTabW     = 70;
     constexpr int kTabH     = 18;
     constexpr int kTabGap   = 6;
+
+    // ── Side panel gap (Transient / Resonant) ────────────────────────────────
+    constexpr int kSideGap = 6;
 }
 
 // =============================================================================
@@ -150,7 +153,7 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     // Envelope editor visible for Body, Noise, and Resonant
     envelopeEditor.setVisible (showBody || showNoise || showResonant);
 
-    // Resonant tab: 80% width, shrunk from the right
+    // Resonant tab: envelope at 80% of full width (side panel fills the rest)
     if (showResonant)
     {
         auto b = envEditorFullBounds;
@@ -520,14 +523,81 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
 
     paintSnareDrum (g, area);
 
-    // Placeholder for Transient tab
+    // Transient / Resonant: side panel fills from waveform right edge to Output
+    if (activeTab == Tab::Transient || activeTab == Tab::Resonant)
+    {
+        const int waveW = envEditorFullBounds.getWidth() * 4 / 5;
+        const int sideX = envEditorFullBounds.getX() + waveW + kSideGap;
+        const int sideW = outputZoneBounds.getX() - sideX - kSideGap;
+
+        const auto sideBox = juce::Rectangle<int> (sideX, envEditorFullBounds.getY(),
+                                                   sideW, envEditorFullBounds.getHeight()).toFloat();
+        g.setColour (juce::Colour (0xff0a0a16));
+        g.fillRoundedRectangle (sideBox, 4.0f);
+
+        const juce::Colour sideAccent = (activeTab == Tab::Transient) ? kTransientOrng : kResonantGrn;
+        g.setColour (sideAccent.withAlpha (0.18f));
+        g.drawRoundedRectangle (sideBox.reduced (0.5f), 4.0f, 1.0f);
+    }
+
+    // Transient tab: canvas (no envelope overlay)
     if (activeTab == Tab::Transient)
     {
-        g.setColour (kTransientOrng.withAlpha (0.25f));
+        auto c = envEditorFullBounds;
+        c.setWidth (c.getWidth() * 4 / 5);
+        const auto cf = c.toFloat();
+
+        const float padX = 24.0f, padT = 20.0f, padB = 20.0f;
+        const float plotL = cf.getX() + padX;
+        const float plotR = cf.getRight() - padX;
+        const float plotT = cf.getY() + padT;
+        const float plotB = cf.getBottom() - padB;
+        const float plotCX = (plotL + plotR) * 0.5f;
+        const float plotCY = (plotT + plotB) * 0.5f;
+
+        // Dark fill
+        g.setColour (juce::Colour (0xff0a0a16));
+        g.fillRoundedRectangle (cf, 4.0f);
+
+        // Radial glow
+        juce::ColourGradient bgGlow (
+            juce::Colour (0xff141430), plotCX, plotCY,
+            juce::Colours::transparentBlack, plotCX, plotCY + cf.getHeight() * 0.55f,
+            true);
+        g.setGradientFill (bgGlow);
+        g.fillRoundedRectangle (cf, 4.0f);
+
+        // Frame
+        g.setColour (juce::Colour (0xff1a1a32));
+        g.drawRoundedRectangle (plotL - 1.0f, plotT - 1.0f,
+                                plotR - plotL + 2.0f, plotB - plotT + 2.0f,
+                                4.0f, 1.0f);
+
+        // Grid
+        g.setColour (juce::Colour (0xff1e1e38));
+        g.drawHorizontalLine ((int) plotT, plotL, plotR);
+        g.drawHorizontalLine ((int) plotB, plotL, plotR);
+        g.drawVerticalLine   ((int) plotL, plotT, plotB);
+        g.drawVerticalLine   ((int) plotR, plotT, plotB);
+
+        g.setColour (juce::Colour (0xff1a1a2e));
+        for (int i = 1; i < 4; ++i)
+        {
+            const float y = plotT + (float) i / 4.0f * (plotB - plotT);
+            g.drawHorizontalLine ((int) y, plotL, plotR);
+        }
+        for (int i = 1; i < 5; ++i)
+        {
+            const float x = plotL + (float) i / 5.0f * (plotR - plotL);
+            g.drawVerticalLine ((int) x, plotT, plotB);
+        }
+
+        // Centred placeholder label
+        g.setColour (kTransientOrng.withAlpha (0.35f));
         g.setFont (juce::Font (juce::FontOptions{}.withHeight (13.0f).withStyle ("Bold")));
-        g.drawText ("COMING SOON",
-                    area.getX(), area.getCentreY() + 40,
-                    area.getWidth(), 20, juce::Justification::centred, false);
+        g.drawText ("Drag & Drop Sample Here",
+                    (int) plotL, (int) plotT, (int) (plotR - plotL), (int) (plotB - plotT),
+                    juce::Justification::centred, false);
     }
 
     g.setColour (kTextDim);
