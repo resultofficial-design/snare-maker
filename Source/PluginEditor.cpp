@@ -324,6 +324,14 @@ void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
 
     paintDrumArea (g, drumAreaBounds);
     paintTabs (g);
+
+    // Global grey-out when every layer tab is disabled
+    if (!tabEnabledFor (Tab::Transient) && !tabEnabledFor (Tab::Body)
+        && !tabEnabledFor (Tab::Resonant) && !tabEnabledFor (Tab::Noise))
+    {
+        g.setColour (juce::Colour (0xbb0d0d1a));
+        g.fillRect (getLocalBounds());
+    }
 }
 
 // =============================================================================
