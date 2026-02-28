@@ -315,7 +315,7 @@ void SnareMakerAudioProcessorEditor::resized()
         const int filtY = knobY + knobSize + labelH + secGap + 4;
         const int filtH = envEditorFullBounds.getBottom() - innerPad - filtY;
 
-        noiseFilterBounds = { selX, filtY, selW, filtH };
+        noiseFilterBounds = { selX, filtY, selW, filtH / 2 };
     }
 }
 
