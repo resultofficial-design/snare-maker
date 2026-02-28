@@ -526,10 +526,10 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
         const auto sideBox = juce::Rectangle<int> (sideX, envEditorFullBounds.getY(),
                                                    sideW, envEditorFullBounds.getHeight()).toFloat();
         g.setColour (kBgPanel);
-        g.fillRoundedRectangle (sideBox, 4.0f);
+        g.fillRoundedRectangle (sideBox, 10.0f);
 
         g.setColour (juce::Colour (0xff2A3038));
-        g.drawRoundedRectangle (sideBox.reduced (0.5f), 4.0f, 1.0f);
+        g.drawRoundedRectangle (sideBox.reduced (0.5f), 10.0f, 1.0f);
     }
 
     // Transient tab: canvas (no envelope overlay)
@@ -546,13 +546,13 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
         const float plotB = cf.getBottom() - padB;
         // Dark fill
         g.setColour (kBgPanel);
-        g.fillRoundedRectangle (cf, 4.0f);
+        g.fillRoundedRectangle (cf, 10.0f);
 
         // Frame
         g.setColour (juce::Colour (0xff2A3038));
         g.drawRoundedRectangle (plotL - 1.0f, plotT - 1.0f,
                                 plotR - plotL + 2.0f, plotB - plotT + 2.0f,
-                                4.0f, 1.0f);
+                                10.0f, 1.0f);
 
         // Grid
         g.setColour (juce::Colour (0xff2A3038));

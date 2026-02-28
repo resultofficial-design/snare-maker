@@ -6,7 +6,7 @@
 
 EnvelopeEditor::EnvelopeEditor()
 {
-    setOpaque (true);
+    setOpaque (false);
     waveformBuffer.reserve (kWaveformSamples);
 }
 
@@ -510,14 +510,21 @@ void EnvelopeEditor::paint (juce::Graphics& g)
     const float plotB  = h - kPadBottom;
     const juce::Colour accent (kAccentColour);
 
-    // ── 1. Background (flat fill) ─────────────────────────────────────────────
-    g.fillAll (juce::Colour (kBgColour));
+    // ── 1. Background (rounded fill + clip) ──────────────────────────────────
+    constexpr float kCornerRadius = 10.0f;
+    const auto bounds = getLocalBounds().toFloat();
+    juce::Path clipPath;
+    clipPath.addRoundedRectangle (bounds, kCornerRadius);
+    g.reduceClipRegion (clipPath);
+
+    g.setColour (juce::Colour (kBgColour));
+    g.fillRoundedRectangle (bounds, kCornerRadius);
 
     // ── 2. Plot area frame (subtle border) ───────────────────────────────────
     g.setColour (juce::Colour (0xff2A3038));
     g.drawRoundedRectangle (plotL - 1.0f, plotT - 1.0f,
                             plotR - plotL + 2.0f, plotB - plotT + 2.0f,
-                            4.0f, 1.0f);
+                            10.0f, 1.0f);
 
     // ── 3. Grid lines ────────────────────────────────────────────────────────
 
