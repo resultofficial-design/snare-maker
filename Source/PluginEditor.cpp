@@ -458,7 +458,7 @@ void SnareMakerAudioProcessorEditor::resized()
 SnareMakerAudioProcessorEditor::Zone
 SnareMakerAudioProcessorEditor::zoneAt (juce::Point<int> pos) const noexcept
 {
-    if (outputZoneBounds.contains (pos)) return Zone::Output;
+    (void) pos;
     return Zone::None;
 }
 
