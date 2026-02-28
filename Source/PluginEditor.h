@@ -44,6 +44,12 @@ private:
                                float minSliderPos, float maxSliderPos,
                                juce::Slider::SliderStyle,
                                juce::Slider&) override;
+
+        void drawRotarySlider (juce::Graphics&,
+                               int x, int y, int width, int height,
+                               float sliderPosProportional,
+                               float rotaryStartAngle, float rotaryEndAngle,
+                               juce::Slider&) override;
     };
 
     // ── Top-level tabs ──────────────────────────────────────────────────────
@@ -107,6 +113,9 @@ private:
     // ── Noise filter visualizer (GEN mode) ──────────────────────────────────
     NoiseFilterVisualizer       noiseFilterVis;
     juce::Rectangle<int>        noiseFilterBounds;
+
+    // ── Sauce knob (visual only, no APVTS) ──────────────────────────────────
+    juce::Slider sauceKnob;
 
     // ── Preset combo (visual only) ─────────────────────────────────────────
     juce::ComboBox presetCombo;

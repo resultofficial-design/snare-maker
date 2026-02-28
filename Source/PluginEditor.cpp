@@ -98,6 +98,73 @@ void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawLinearSlider (
                    (kThumbR - 1.5f) * 2.0f, (kThumbR - 1.5f) * 2.0f, 1.5f);
 }
 
+void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawRotarySlider (
+    juce::Graphics& g,
+    int x, int y, int width, int height,
+    float sliderPos,
+    float rotaryStartAngle, float rotaryEndAngle,
+    juce::Slider& slider)
+{
+    const float diameter = (float) juce::jmin (width, height);
+    const float radius   = diameter * 0.5f;
+    const float cx       = (float) x + (float) width  * 0.5f;
+    const float cy       = (float) y + (float) height * 0.5f;
+
+    const juce::Colour accent = slider.findColour (juce::Slider::rotarySliderFillColourId);
+
+    // ── Base circle ──────────────────────────────────────────────────────────
+    g.setColour (juce::Colour (0xff1E2229));
+    g.fillEllipse (cx - radius, cy - radius, diameter, diameter);
+
+    // ── Value arc ────────────────────────────────────────────────────────────
+    const float arcRadius  = radius - 6.0f;
+    const float angle      = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
+    constexpr float arcW   = 4.0f;
+
+    // Glow behind the value arc
+    if (sliderPos > 0.0f)
+    {
+        juce::Path glowArc;
+        glowArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                               rotaryStartAngle, angle, true);
+        g.setColour (accent.withAlpha (0.15f));
+        g.strokePath (glowArc, juce::PathStrokeType (arcW + 6.0f));
+    }
+
+    // Background arc (full range, dim)
+    {
+        juce::Path bgArc;
+        bgArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                             rotaryStartAngle, rotaryEndAngle, true);
+        g.setColour (juce::Colour (0xff2A3038));
+        g.strokePath (bgArc, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
+                                                    juce::PathStrokeType::rounded));
+    }
+
+    // Active arc (start → current value)
+    if (sliderPos > 0.0f)
+    {
+        juce::Path valueArc;
+        valueArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                                rotaryStartAngle, angle, true);
+        g.setColour (accent);
+        g.strokePath (valueArc, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
+                                                       juce::PathStrokeType::rounded));
+    }
+
+    // ── Pointer line ─────────────────────────────────────────────────────────
+    {
+        const float pointerLen  = arcRadius - 10.0f;
+        const float pointerTail = 8.0f;
+        const float px = std::sin (angle);
+        const float py = -std::cos (angle);
+
+        g.setColour (juce::Colours::white);
+        g.drawLine (cx + px * pointerTail, cy + py * pointerTail,
+                    cx + px * pointerLen,  cy + py * pointerLen, 2.0f);
+    }
+}
+
 // =============================================================================
 // Constructor / Destructor
 // =============================================================================
@@ -115,6 +182,14 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
 
     // ── Noise filter visualizer (hidden until Noise/GEN) ──────────────────
     addChildComponent (noiseFilterVis);
+
+    // ── Sauce knob (visual only, no APVTS) ────────────────────────────────
+    sauceKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    sauceKnob.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    sauceKnob.setRange (0.0, 1.0, 0.01);
+    sauceKnob.setValue (0.0);
+    sauceKnob.setColour (juce::Slider::rotarySliderFillColourId, kSaucePink);
+    addChildComponent (sauceKnob);   // hidden until Sauce tab
 
     // ── Preset combo (visual only) ────────────────────────────────────────────
     presetCombo.addItem ("Init Snare",       1);
@@ -192,6 +267,17 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     noiseFilterVis.setVisible (showNoise && noiseSrc == NoiseSrc::Gen);
     if (showNoise)
         noiseFilterVis.setBounds (noiseFilterBounds);
+
+    // Sauce knob: visible only on Sauce tab
+    const bool showSauce = (tab == Tab::Sauce);
+    sauceKnob.setVisible (showSauce);
+    if (showSauce)
+    {
+        constexpr int knobSize = 180;
+        const int knobX = drumAreaBounds.getCentreX() - knobSize / 2;
+        const int knobY = drumAreaBounds.getCentreY() - knobSize / 2 - 16;
+        sauceKnob.setBounds (knobX, knobY, knobSize, knobSize);
+    }
 
     // Default envelope for each tab
     if (showBody)          setEnvMode (EnvMode::Pitch);
@@ -807,10 +893,14 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
     }
     else if (activeTab == Tab::Sauce)
     {
-        g.setColour (kSaucePink.withAlpha (0.40f));
-        g.setFont (juce::Font (juce::FontOptions{}.withHeight (15.0f).withStyle ("Bold")));
-        g.drawText ("Sauce Module (Coming Soon)",
-                    area, juce::Justification::centred, false);
+        // "SECRET SAUCE" label centered below the knob
+        constexpr int knobSize = 180;
+        const int labelY = area.getCentreY() - knobSize / 2 - 16 + knobSize + 8;
+        g.setColour (juce::Colours::white);
+        g.setFont (juce::Font (juce::FontOptions{}.withHeight (12.0f).withStyle ("Bold")));
+        g.drawText ("SECRET SAUCE",
+                    area.getX(), labelY, area.getWidth(), 18,
+                    juce::Justification::centred, false);
     }
 
     g.setColour (kTextDim);
