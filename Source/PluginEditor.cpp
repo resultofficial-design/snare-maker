@@ -227,6 +227,13 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     outputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.apvts, "outputGain", outputSlider);
 
+    // ── Output value bubble ───────────────────────────────────────────────────
+    outputBubble.typeface = lnf.interRegular;
+    addChildComponent (outputBubble);   // hidden until drag
+    outputSlider.onDragStart   = [this] { outputBubble.setVisible (true);  updateOutputBubble(); };
+    outputSlider.onDragEnd     = [this] { outputBubble.setVisible (false); };
+    outputSlider.onValueChange = [this] { if (outputBubble.isVisible()) updateOutputBubble(); };
+
     // ── Preset combo (visual only) ────────────────────────────────────────────
     presetCombo.addItem ("Init Snare",       1);
     presetCombo.addItem ("Trap Snare",       2);
@@ -348,6 +355,39 @@ void SnareMakerAudioProcessorEditor::setEnvMode (EnvMode mode)
         case EnvMode::NoiseAmp:    envelopeEditor.setEnvelope (audioProcessor.noiseAmpEnvelope);    break;
         case EnvMode::ResonantAmp: envelopeEditor.setEnvelope (audioProcessor.resonantAmpEnvelope); break;
     }
+}
+
+// =============================================================================
+// OutputValueBubble
+// =============================================================================
+
+void SnareMakerAudioProcessorEditor::OutputValueBubble::paint (juce::Graphics& g)
+{
+    const auto bounds = getLocalBounds().toFloat();
+    g.setColour (juce::Colour (0xff1E2229));
+    g.fillRoundedRectangle (bounds, 6.0f);
+
+    g.setColour (juce::Colours::white);
+    if (typeface != nullptr)
+        g.setFont (juce::Font (juce::FontOptions{}.withTypeface (typeface)).withHeight (11.0f));
+    else
+        g.setFont (11.0f);
+    g.drawText (text, getLocalBounds(), juce::Justification::centred, false);
+}
+
+void SnareMakerAudioProcessorEditor::updateOutputBubble()
+{
+    const double val = outputSlider.getValue();
+    outputBubble.text = (val <= outputSlider.getMinimum())
+        ? juce::String ("-inf dB")
+        : juce::String (val, 1) + " dB";
+
+    const float thumbY = (float) outputSlider.getPositionOfValue (val);
+    constexpr int bubbleW = 56, bubbleH = 22, gap = 6;
+    outputBubble.setBounds (outputSlider.getX() - bubbleW - gap,
+                            outputSlider.getY() + (int) thumbY - bubbleH / 2,
+                            bubbleW, bubbleH);
+    outputBubble.repaint();
 }
 
 // =============================================================================
@@ -591,6 +631,39 @@ void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
     paintHeader (g);
 
     paintZone (g, outputZoneBounds, Zone::Output, "OUTPUT", kTextMuted,  {}, true);
+
+    // ── dB scale markings alongside output fader ─────────────────────────
+    {
+        const float slTop    = (float) outputSlider.getY() + 9.0f;   // top of travel (kThumbR)
+        const float slBot    = (float) outputSlider.getBottom() - 9.0f;
+        const double dbMin   = outputSlider.getMinimum();             // -24
+        const double dbMax   = outputSlider.getMaximum();             // +6
+        const float  travel  = slBot - slTop;
+
+        const int labelX = outputZoneBounds.getX() + 4;
+        const int labelW = outputSlider.getX() - labelX - 2;
+
+        g.setFont (lnf.interRegularFont (8.0f));
+        g.setColour (kTextDim);
+
+        struct Mark { double db; const char* text; };
+        const Mark marks[] = {
+            {  6, "+6" }, {  3, "+3" }, {  0,  "0" }, { -3, "-3" },
+            { -6, "-6" }, { -10, "-10" }, { -20, "-20" }
+        };
+
+        for (auto& m : marks)
+        {
+            const float norm = (float) ((m.db - dbMin) / (dbMax - dbMin));
+            const float yPos = slBot - norm * travel;
+            g.drawText (m.text, labelX, (int) yPos - 5, labelW, 10,
+                        juce::Justification::centredRight, false);
+        }
+
+        // -inf at the very bottom (slider minimum)
+        g.drawText ("-inf", labelX, (int) slBot - 5, labelW, 10,
+                    juce::Justification::centredRight, false);
+    }
 
     paintDrumArea (g, drumAreaBounds);
     paintTabs (g);

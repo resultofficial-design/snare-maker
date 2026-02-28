@@ -135,6 +135,16 @@ private:
     juce::Slider outputSlider;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputAttachment;
 
+    // ── Output value bubble (visible during drag) ─────────────────────────
+    struct OutputValueBubble : public juce::Component
+    {
+        juce::String text;
+        juce::Typeface::Ptr typeface;
+        void paint (juce::Graphics&) override;
+    };
+    OutputValueBubble outputBubble;
+    void updateOutputBubble();
+
     // ── Preset combo (visual only) ─────────────────────────────────────────
     juce::ComboBox presetCombo;
 
