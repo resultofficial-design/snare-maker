@@ -191,6 +191,14 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     sauceKnob.setColour (juce::Slider::rotarySliderFillColourId, kSaucePink);
     addChildComponent (sauceKnob);   // hidden until Sauce tab
 
+    // ── Output fader (attached to outputGain APVTS param) ────────────────────
+    outputSlider.setSliderStyle (juce::Slider::LinearVertical);
+    outputSlider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    outputSlider.setColour (juce::Slider::trackColourId, kOutTeal);
+    addAndMakeVisible (outputSlider);
+    outputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        audioProcessor.apvts, "outputGain", outputSlider);
+
     // ── Preset combo (visual only) ────────────────────────────────────────────
     presetCombo.addItem ("Init Snare",       1);
     presetCombo.addItem ("Trap Snare",       2);
@@ -333,6 +341,15 @@ void SnareMakerAudioProcessorEditor::resized()
 
     drumAreaBounds   = { 0,                mainTop, kWinW - kOutputW, kMainH };
     outputZoneBounds = { kWinW - kOutputW, mainTop, kOutputW,         kMainH };
+
+    // ── Output fader (centered in output zone, large) ──────────────────────
+    {
+        constexpr int padTop = 36, padBot = 20, sliderW = 40;
+        const int sliderH = outputZoneBounds.getHeight() - padTop - padBot;
+        const int sliderX = outputZoneBounds.getCentreX() - sliderW / 2;
+        const int sliderY = outputZoneBounds.getY() + padTop;
+        outputSlider.setBounds (sliderX, sliderY, sliderW, sliderH);
+    }
 
     // ── Preset combo in header (right-aligned) ─────────────────────────────
     {

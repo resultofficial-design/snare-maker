@@ -117,6 +117,10 @@ private:
     // ── Sauce knob (visual only, no APVTS) ──────────────────────────────────
     juce::Slider sauceKnob;
 
+    // ── Output fader ─────────────────────────────────────────────────────────
+    juce::Slider outputSlider;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputAttachment;
+
     // ── Preset combo (visual only) ─────────────────────────────────────────
     juce::ComboBox presetCombo;
 
