@@ -329,18 +329,8 @@ void SnareMakerAudioProcessorEditor::resized()
     contentArea.removeFromBottom (kUISpacing);     // bottom margin
 
     // Split: main area | kUISpacing gap | output zone
-    drumAreaBounds   = contentArea.withWidth (contentArea.getWidth() - kOutputW - kUISpacing);
-    outputZoneBounds = { contentArea.getRight() - kOutputW, contentArea.getY(),
-                         kOutputW, contentArea.getHeight() };
-
-    // ── Output fader (centered in output zone, large) ──────────────────────
-    {
-        constexpr int padTop = 36, padBot = 20, sliderW = 40;
-        const int sliderH = outputZoneBounds.getHeight() - padTop - padBot;
-        const int sliderX = outputZoneBounds.getCentreX() - sliderW / 2;
-        const int sliderY = outputZoneBounds.getY() + padTop;
-        outputSlider.setBounds (sliderX, sliderY, sliderW, sliderH);
-    }
+    drumAreaBounds = contentArea.withWidth (contentArea.getWidth() - kOutputW - kUISpacing);
+    // outputZoneBounds set below after tabY / modeBtnY are known
 
     // ── Preset combo in header (right-aligned) ─────────────────────────────
     {
@@ -354,17 +344,21 @@ void SnareMakerAudioProcessorEditor::resized()
     {
         constexpr int btnH = 32;
 
-        // Tabs at top of drum area
-        const int tabY  = drumAreaBounds.getY();
-        const int leftX = drumAreaBounds.getX();
-        transientTabBounds = { leftX,                          tabY, kTabW, kTabH };
-        bodyTabBounds      = { leftX + (kTabW + kTabGap),     tabY, kTabW, kTabH };
-        resonantTabBounds  = { leftX + (kTabW + kTabGap) * 2, tabY, kTabW, kTabH };
-        noiseTabBounds     = { leftX + (kTabW + kTabGap) * 3, tabY, kTabW, kTabH };
-
+        // Tabs at top of drum area – two groups with kUISpacing inside each
+        const int tabY    = drumAreaBounds.getY();
+        const int leftX   = drumAreaBounds.getX();
         const int rightEnd = drumAreaBounds.getRight();
+        const int tabStep = kTabW + kUISpacing;
+
+        // Left group (left-aligned): Transient · Body · Resonant · Noise
+        transientTabBounds = { leftX,              tabY, kTabW, kTabH };
+        bodyTabBounds      = { leftX + tabStep,    tabY, kTabW, kTabH };
+        resonantTabBounds  = { leftX + tabStep * 2, tabY, kTabW, kTabH };
+        noiseTabBounds     = { leftX + tabStep * 3, tabY, kTabW, kTabH };
+
+        // Right group (right-aligned): Room · Sauce
         sauceTabBounds     = { rightEnd - kTabW,                 tabY, kTabW, kTabH };
-        roomTabBounds      = { rightEnd - kTabW * 2 - kTabGap,  tabY, kTabW, kTabH };
+        roomTabBounds      = { rightEnd - kTabW * 2 - kUISpacing, tabY, kTabW, kTabH };
 
         // Envelope editor below tabs (kUISpacing gap)
         const int envTop   = tabY + kTabH + kUISpacing;
@@ -382,6 +376,19 @@ void SnareMakerAudioProcessorEditor::resized()
 
         // NOISE tab: single button spanning full envelope width
         noiseAmpBtn .setBounds (envL,                    modeBtnY, envW, btnH);
+
+        // Output zone: top aligns with tabs, bottom aligns with mode selector
+        outputZoneBounds = { contentArea.getRight() - kOutputW, tabY,
+                             kOutputW, (modeBtnY + btnH) - tabY };
+    }
+
+    // ── Output fader (centered in output zone, large) ──────────────────────
+    {
+        constexpr int padTop = 36, padBot = 20, sliderW = 40;
+        const int sliderH = outputZoneBounds.getHeight() - padTop - padBot;
+        const int sliderX = outputZoneBounds.getCentreX() - sliderW / 2;
+        const int sliderY = outputZoneBounds.getY() + padTop;
+        outputSlider.setBounds (sliderX, sliderY, sliderW, sliderH);
     }
 
     // ── Noise filter visualizer bounds (computed from side panel geometry) ──
