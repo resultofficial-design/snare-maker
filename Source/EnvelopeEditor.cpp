@@ -558,30 +558,20 @@ void EnvelopeEditor::paint (juce::Graphics& g)
         g.drawHorizontalLine ((int) markerY, markerX, markerX + 10.0f);
 
         // Indicator dot at the initial waveform value
-        constexpr float dotR = 4.0f;
+        constexpr float dotR = 3.5f;
 
-        // Glow
-        g.setColour (accent.withAlpha (0.15f));
-        g.fillEllipse (markerX - dotR * 1.8f, markerY - dotR * 1.8f,
-                        dotR * 3.6f, dotR * 3.6f);
-
-        // Fill
         g.setColour (accent.withAlpha (0.90f));
         g.fillEllipse (markerX - dotR, markerY - dotR,
                         dotR * 2.0f, dotR * 2.0f);
-
-        // Border
-        g.setColour (juce::Colours::white.withAlpha (0.80f));
-        g.drawEllipse (markerX - dotR + 0.5f, markerY - dotR + 0.5f,
-                        (dotR - 0.5f) * 2.0f, (dotR - 0.5f) * 2.0f, 1.0f);
     }
 
     // ── 5. Envelope curve ────────────────────────────────────────────────────
+    const juce::Colour curveGrey (0xff8A8F98);
     juce::Path curvePath = buildCurvePath();
 
     if (! curvePath.isEmpty())
     {
-        // ── 6. Filled area (rich gradient under curve) ───────────────────────
+        // ── 6. Filled area (subtle under curve) ─────────────────────────────
         {
             juce::Path fillPath (curvePath);
             const auto& lastPt  = envelope->points.back();
@@ -592,66 +582,32 @@ void EnvelopeEditor::paint (juce::Graphics& g)
             fillPath.lineTo (firstPx.x, plotB);
             fillPath.closeSubPath();
 
-            g.setColour (accent.withAlpha (0.10f));
+            g.setColour (curveGrey.withAlpha (0.08f));
             g.fillPath (fillPath);
         }
 
-        // ── 7. Soft glow around curve (3 concentric layers) ─────────────────
-        {
-            const juce::PathStrokeType glowOuter (14.0f,
-                juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
-            const juce::PathStrokeType glowMid (7.0f,
-                juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
-            const juce::PathStrokeType glowInner (3.5f,
-                juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
-
-            g.setColour (accent.withAlpha (0.04f));
-            g.strokePath (curvePath, glowOuter);
-
-            g.setColour (accent.withAlpha (0.08f));
-            g.strokePath (curvePath, glowMid);
-
-            g.setColour (accent.withAlpha (0.16f));
-            g.strokePath (curvePath, glowInner);
-        }
-
-        // ── 8. Main curve stroke (thick, bright) ────────────────────────────
-        g.setColour (accent.withAlpha (0.92f));
-        g.strokePath (curvePath, juce::PathStrokeType (2.5f,
+        // ── 7. Main curve stroke (flat grey, no glow) ──────────────────────
+        g.setColour (curveGrey);
+        g.strokePath (curvePath, juce::PathStrokeType (2.0f,
             juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
     }
 
-    // ── 9. Nodes ─────────────────────────────────────────────────────────────
+    // ── 8. Nodes (simple filled circles, no glow / shadow / ring) ───────────
     const int numPts = envelope->getNumPoints();
+    constexpr float kSmallR = 4.5f;
+    constexpr float kActiveR = 5.5f;
+
     for (int i = 0; i < numPts; ++i)
     {
         const auto& pt = envelope->points[(size_t) i];
         const auto px = toPixel ({ pt.time, pt.value });
         const bool isDragged = (i == dragIndex);
         const bool isHovered = (i == hoveredIndex);
-        const float r = (isDragged || isHovered) ? kHoverRadius : kNodeRadius;
+        const float r = (isDragged || isHovered) ? kActiveR : kSmallR;
 
-        // Drop shadow
-        g.setColour (juce::Colours::black.withAlpha (0.35f));
-        g.fillEllipse (px.x - r + 1.5f, px.y - r + 2.0f,
-                       r * 2.0f, r * 2.0f);
-
-        // Glow halo on hover/drag
-        if (isDragged || isHovered)
-        {
-            g.setColour (accent.withAlpha (isDragged ? 0.35f : 0.20f));
-            g.fillEllipse (px.x - r * 1.8f, px.y - r * 1.8f,
-                           r * 3.6f, r * 3.6f);
-        }
-
-        // Fill: accent when dragging, white otherwise
-        g.setColour (isDragged ? accent : juce::Colour (kNodeFill));
+        g.setColour (isDragged ? curveGrey.brighter (0.4f)
+                     : isHovered ? juce::Colours::white
+                     : curveGrey);
         g.fillEllipse (px.x - r, px.y - r, r * 2.0f, r * 2.0f);
-
-        // Border ring
-        g.setColour (isDragged ? juce::Colours::white : accent);
-        g.drawEllipse (px.x - r + 1.0f, px.y - r + 1.0f,
-                       (r - 1.0f) * 2.0f, (r - 1.0f) * 2.0f,
-                       1.5f);
     }
 }

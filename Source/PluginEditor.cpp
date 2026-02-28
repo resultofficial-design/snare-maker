@@ -686,10 +686,11 @@ void SnareMakerAudioProcessorEditor::paintZone (
 void SnareMakerAudioProcessorEditor::paintDrumArea (
     juce::Graphics& g, juce::Rectangle<int> area)
 {
-    g.setColour (kBgDrum);
+    g.setColour (activeTab == Tab::Sauce ? kBgPanel : kBgDrum);
     g.fillRect (area);
 
-    paintSnareDrum (g, area);
+    if (activeTab != Tab::Sauce)
+        paintSnareDrum (g, area);
 
     // Transient / Resonant / Noise: side panel fills from waveform right edge to Output
     if (activeTab == Tab::Transient || activeTab == Tab::Resonant || activeTab == Tab::Noise)
