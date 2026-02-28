@@ -31,6 +31,7 @@ target_sources(SnareMaker PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
     Source/EnvelopeEditor.cpp
+    Source/NoiseFilterVisualizer.cpp
 )
 
 # ── Compile definitions ───────────────────────────────────────────────────────

@@ -113,6 +113,9 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
                                         audioProcessor.envelopeLock);
     addAndMakeVisible (envelopeEditor);
 
+    // ── Noise filter visualizer (hidden until Noise/GEN) ──────────────────
+    addChildComponent (noiseFilterVis);
+
     // ── Preset combo (visual only) ────────────────────────────────────────────
     presetCombo.addItem ("Init Snare",       1);
     presetCombo.addItem ("Trap Snare",       2);
@@ -184,6 +187,11 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     {
         envelopeEditor.setBounds (envEditorFullBounds);
     }
+
+    // Noise filter visualizer: visible only in Noise tab + GEN mode
+    noiseFilterVis.setVisible (showNoise && noiseSrc == NoiseSrc::Gen);
+    if (showNoise)
+        noiseFilterVis.setBounds (noiseFilterBounds);
 
     // Default envelope for each tab
     if (showBody)          setEnvMode (EnvMode::Pitch);
@@ -286,6 +294,29 @@ void SnareMakerAudioProcessorEditor::resized()
         noiseAmpBtn .setBounds (envL,                    modeBtnY, envW, btnH);
     }
 
+    // ── Noise filter visualizer bounds (computed from side panel geometry) ──
+    {
+        const int waveW = envEditorFullBounds.getWidth() * 4 / 5 - 30;
+        const int sideX = envEditorFullBounds.getX() + waveW + kSideGap;
+        const int sideW = outputZoneBounds.getX() - sideX - kSideGap;
+
+        constexpr int innerPad = 6;
+        constexpr int selH     = 28;
+        constexpr int secGap   = 6;
+        constexpr int typeH    = 24;
+        constexpr int knobSize = 40;
+        constexpr int labelH   = 14;
+
+        const int selX  = sideX + innerPad;
+        const int selY  = envEditorFullBounds.getY() + innerPad;
+        const int selW  = sideW - innerPad * 2;
+        const int typeY = selY + selH + secGap;
+        const int knobY = typeY + typeH + secGap + 4;
+        const int filtY = knobY + knobSize + labelH + secGap + 4;
+        const int filtH = envEditorFullBounds.getBottom() - innerPad - filtY;
+
+        noiseFilterBounds = { selX, filtY, selW, filtH };
+    }
 }
 
 // =============================================================================
@@ -360,6 +391,7 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
         && noiseSrcBounds.contains (e.getPosition()) && !e.mods.isPopupMenu())
     {
         noiseSrc = (noiseSrc == NoiseSrc::Gen) ? NoiseSrc::Sample : NoiseSrc::Gen;
+        noiseFilterVis.setVisible (noiseSrc == NoiseSrc::Gen);
         repaint();
         return;
     }
@@ -702,26 +734,7 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
                 g.drawText ("Pan", knob2X - 5, knobY + knobSize + 2,
                             knobSize + 10, labelH, juce::Justification::centred, false);
 
-                // ── Filter section ──────────────────────────────────────
-                const int filtY = knobY + knobSize + labelH + secGap + 4;
-                const int filtH = envEditorFullBounds.getBottom() - innerPad - filtY;
-
-                g.setColour (juce::Colour (0xff181D24));
-                g.fillRoundedRectangle ((float) selX, (float) filtY,
-                                        (float) selW, (float) filtH, 8.0f);
-
-                g.setColour (juce::Colours::white);
-                g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
-                g.drawText ("Filter", selX, filtY + 6, selW, 14,
-                            juce::Justification::centred, false);
-
-                g.setColour (juce::Colour (0xff555566));
-                g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.0f)));
-                const int lblY = filtY + 24;
-                const int lblSpacing = (filtH - 30) / 3;
-                g.drawText ("High Pass", selX, lblY,                  selW, 14, juce::Justification::centred, false);
-                g.drawText ("Mid Bell",  selX, lblY + lblSpacing,     selW, 14, juce::Justification::centred, false);
-                g.drawText ("Low Pass",  selX, lblY + lblSpacing * 2, selW, 14, juce::Justification::centred, false);
+                // Filter section: handled by NoiseFilterVisualizer component
             }
             else
             {

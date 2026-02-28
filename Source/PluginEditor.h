@@ -2,6 +2,7 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "EnvelopeEditor.h"
+#include "NoiseFilterVisualizer.h"
 
 // =============================================================================
 // SnareMakerAudioProcessorEditor  –  Clean UI (envelope-only)
@@ -102,6 +103,10 @@ private:
     enum class NoiseType { White, Pink, Brown, Blue, Violet };
     NoiseType noiseType { NoiseType::White };
     juce::Rectangle<int> noiseTypeBounds;  // hit-test area (set during paint)
+
+    // ── Noise filter visualizer (GEN mode) ──────────────────────────────────
+    NoiseFilterVisualizer       noiseFilterVis;
+    juce::Rectangle<int>        noiseFilterBounds;
 
     // ── Preset combo (visual only) ─────────────────────────────────────────
     juce::ComboBox presetCombo;
