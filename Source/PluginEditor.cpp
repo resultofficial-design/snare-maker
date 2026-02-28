@@ -86,16 +86,9 @@ void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawLinearSlider (
         g.fillRoundedRectangle (cx - kTrackW * 0.5f, sliderPos, kTrackW, fillH, 3.0f);
     }
 
-    g.setColour (accent.withAlpha (0.22f));
-    g.fillEllipse (cx - kThumbR * 1.7f, sliderPos - kThumbR * 1.7f,
-                   kThumbR * 3.4f, kThumbR * 3.4f);
-
-    g.setColour (juce::Colours::white);
+    // Flat thumb – no glow, no accent ring
+    g.setColour (juce::Colour (0xffaaaaaa));
     g.fillEllipse (cx - kThumbR, sliderPos - kThumbR, kThumbR * 2.0f, kThumbR * 2.0f);
-
-    g.setColour (accent);
-    g.drawEllipse (cx - kThumbR + 1.5f, sliderPos - kThumbR + 1.5f,
-                   (kThumbR - 1.5f) * 2.0f, (kThumbR - 1.5f) * 2.0f, 1.5f);
 }
 
 void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawRotarySlider (
@@ -194,7 +187,7 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     // ── Output fader (attached to outputGain APVTS param) ────────────────────
     outputSlider.setSliderStyle (juce::Slider::LinearVertical);
     outputSlider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
-    outputSlider.setColour (juce::Slider::trackColourId, kOutTeal);
+    outputSlider.setColour (juce::Slider::trackColourId, juce::Colour (0xff5a5a6a));
     addAndMakeVisible (outputSlider);
     outputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.apvts, "outputGain", outputSlider);
@@ -339,8 +332,15 @@ void SnareMakerAudioProcessorEditor::resized()
 {
     const int mainTop = kHeaderH;
 
-    drumAreaBounds   = { 0,                mainTop, kWinW - kOutputW, kMainH };
-    outputZoneBounds = { kWinW - kOutputW, mainTop, kOutputW,         kMainH };
+    drumAreaBounds   = { 0, mainTop, kWinW - kOutputW, kMainH };
+
+    // Output zone: 6px top gap (matches header→tab), bottom aligns with mode buttons
+    {
+        constexpr int kGap = 6;
+        const int outTop = mainTop + kGap;
+        const int outBot = mainTop + kMainH - kGap;
+        outputZoneBounds = { kWinW - kOutputW, outTop, kOutputW, outBot - outTop };
+    }
 
     // ── Output fader (centered in output zone, large) ──────────────────────
     {
@@ -372,7 +372,7 @@ void SnareMakerAudioProcessorEditor::resized()
         resonantTabBounds  = { leftX + (kTabW + kTabGap) * 2,            tabY, kTabW, kTabH };
         noiseTabBounds     = { leftX + (kTabW + kTabGap) * 3,            tabY, kTabW, kTabH };
 
-        const int rightEnd = drumAreaBounds.getRight() - envPadX;   // right-aligned
+        const int rightEnd = outputZoneBounds.getX() - 6;            // 6px gap to output
         sauceTabBounds     = { rightEnd - kTabW,                          tabY, kTabW, kTabH };
         roomTabBounds      = { rightEnd - kTabW * 2 - kTabGap,           tabY, kTabW, kTabH };
 
@@ -382,8 +382,7 @@ void SnareMakerAudioProcessorEditor::resized()
         const int modeBtnY = drumAreaBounds.getBottom() - envPadBot - btnH;
         // Envelope fills the space between tabs and mode buttons
         const int envH = modeBtnY - envPadBot - envTop;
-        envEditorFullBounds = { drumAreaBounds.getX() + envPadX, envTop,
-                                drumAreaBounds.getWidth() - envPadX * 2, envH };
+        envEditorFullBounds = { leftX, envTop, rightEnd - leftX, envH };
         envelopeEditor.setBounds (envEditorFullBounds);
 
         // BODY tab: two buttons spanning full envelope width
@@ -553,7 +552,7 @@ void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
 
     paintHeader (g);
 
-    paintZone (g, outputZoneBounds, Zone::Output, "OUTPUT", kOutTeal,    {}, true);
+    paintZone (g, outputZoneBounds, Zone::Output, "OUTPUT", kTextMuted,  {}, true);
 
     paintDrumArea (g, drumAreaBounds);
     paintTabs (g);
@@ -652,21 +651,12 @@ void SnareMakerAudioProcessorEditor::paintZone (
 
     // Background
     g.setColour (isActive ? kBgPanelAct : isHovered ? kBgPanelHov : kBgPanel);
-    g.fillRoundedRectangle (bounds.toFloat().reduced (2.0f), 6.0f);
-
-    // Accent border (left bar)
-    const float borderAlpha = isActive ? 0.90f : isHovered ? 0.50f : 0.18f;
-    g.setColour (accent.withAlpha (borderAlpha));
-    g.fillRoundedRectangle ((float) bounds.getX() + 2.0f,
-                            (float) bounds.getY() + 2.0f,
-                            3.0f,
-                            (float) bounds.getHeight() - 4.0f,
-                            1.5f);
+    g.fillRoundedRectangle (bounds.toFloat().reduced (2.0f), 8.0f);
 
     // Title
     const float titleAlpha = isActive ? 1.0f : isHovered ? 0.80f : 0.50f;
-    g.setColour (accent.withAlpha (titleAlpha));
-    g.setFont (juce::Font (juce::FontOptions{}.withHeight (11.0f).withStyle ("Bold")));
+    g.setColour (kTextMuted.withAlpha (titleAlpha));
+    g.setFont (juce::Font (juce::FontOptions{}.withHeight (11.0f)));
     g.drawText (title, bounds.getX() + 10, bounds.getY() + 14,
                 bounds.getWidth() - 14, 14, juce::Justification::centred, false);
 
