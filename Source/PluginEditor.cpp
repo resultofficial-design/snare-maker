@@ -437,12 +437,36 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
             {
                 tabEnabledFor (tab) = !tabEnabledFor (tab);
 
-                // If we just disabled the active tab, jump to the next enabled one
+                constexpr Tab order[] = { Tab::Transient, Tab::Body, Tab::Resonant,
+                                          Tab::Noise, Tab::Room, Tab::Sauce };
+
                 if (!tabEnabledFor (tab) && activeTab == tab)
                 {
-                    constexpr Tab order[] = { Tab::Transient, Tab::Body, Tab::Resonant, Tab::Noise, Tab::Room, Tab::Sauce };
+                    // Just disabled the active tab — find another enabled tab
+                    bool found = false;
                     for (auto t : order)
-                        if (tabEnabledFor (t)) { setActiveTab (t); break; }
+                        if (tabEnabledFor (t)) { setActiveTab (t); found = true; break; }
+
+                    // All tabs disabled — hide all tab content
+                    if (!found)
+                    {
+                        envelopeEditor.setVisible (false);
+                        bodyPitchBtn  .setVisible (false);
+                        bodyAmpBtn    .setVisible (false);
+                        noiseAmpBtn   .setVisible (false);
+                        noiseFilterVis.setVisible (false);
+                        sauceKnob     .setVisible (false);
+                    }
+                }
+                else if (tabEnabledFor (tab))
+                {
+                    // Just enabled a tab — if it's the only one, activate it
+                    bool onlyEnabled = true;
+                    for (auto t : order)
+                        if (t != tab && tabEnabledFor (t)) { onlyEnabled = false; break; }
+
+                    if (onlyEnabled)
+                        setActiveTab (tab);
                 }
 
                 repaint();
