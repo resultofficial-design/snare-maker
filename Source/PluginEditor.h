@@ -93,6 +93,16 @@ private:
 
     void setEnvMode (EnvMode mode);
 
+    // ── Noise source selector (GEN / SAMPLE, UI only) ────────────────────
+    enum class NoiseSrc { Gen, Sample };
+    NoiseSrc noiseSrc { NoiseSrc::Gen };
+    juce::Rectangle<int> noiseSrcBounds;   // hit-test area (set during paint)
+
+    // ── Noise type selector (WHITE…VIOLET, UI only) ────────────────────
+    enum class NoiseType { White, Pink, Brown, Blue, Violet };
+    NoiseType noiseType { NoiseType::White };
+    juce::Rectangle<int> noiseTypeBounds;  // hit-test area (set during paint)
+
     // ── Preset combo (visual only) ─────────────────────────────────────────
     juce::ComboBox presetCombo;
 
@@ -107,7 +117,7 @@ private:
                         juce::Colour             accent,
                         const juce::StringArray& hints,
                         bool                     hasControls = false) const;
-    void paintDrumArea  (juce::Graphics&, juce::Rectangle<int> area) const;
+    void paintDrumArea  (juce::Graphics&, juce::Rectangle<int> area);
     void paintSnareDrum (juce::Graphics&, juce::Rectangle<int> area) const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SnareMakerAudioProcessorEditor)

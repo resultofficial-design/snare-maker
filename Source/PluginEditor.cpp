@@ -364,6 +364,17 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
         return;
     }
 
+    // ── Noise type selector click ────────────────────────────────────────
+    if (activeTab == Tab::Noise && !noiseTypeBounds.isEmpty()
+        && noiseTypeBounds.contains (e.getPosition()) && !e.mods.isPopupMenu())
+    {
+        const float segW = (float) noiseTypeBounds.getWidth() / 5.0f;
+        const int idx = (int) ((float) (e.getPosition().x - noiseTypeBounds.getX()) / segW);
+        noiseType = static_cast<NoiseType> (juce::jlimit (0, 4, idx));
+        repaint();
+        return;
+    }
+
     const Zone z = zoneAt (e.getPosition());
     if (z != Zone::None && z != activeZone) { activeZone = z; repaint(); }
 }
@@ -606,6 +617,133 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             g.setColour (genActive ? juce::Colour (0xff555566) : juce::Colours::white);
             g.drawText ("SAMPLE", selX + halfW, selY, selW - halfW, selH,
                         juce::Justification::centred, false);
+
+            constexpr int secGap = 6;
+
+            if (genActive)
+            {
+                // ── Noise Type selector ─────────────────────────────────
+                constexpr int typeH = 24;
+                const int typeY = selY + selH + secGap;
+                noiseTypeBounds = { selX, typeY, selW, typeH };
+
+                constexpr int kNumTypes = 5;
+                const char* typeNames[] = { "WHITE", "PINK", "BROWN", "BLUE", "VIOLET" };
+                const int typeIdx = static_cast<int> (noiseType);
+
+                g.setColour (juce::Colour (0xff181D24));
+                g.fillRoundedRectangle ((float) selX, (float) typeY,
+                                        (float) selW, (float) typeH, 8.0f);
+
+                g.setFont (juce::Font (juce::FontOptions{}.withHeight (8.5f).withStyle ("Bold")));
+                const float segW = (float) selW / (float) kNumTypes;
+                for (int i = 0; i < kNumTypes; ++i)
+                {
+                    const float segX = (float) selX + segW * (float) i;
+                    const bool isTypeActive = (i == typeIdx);
+
+                    if (isTypeActive)
+                    {
+                        juce::Path segClip;
+                        segClip.addRoundedRectangle ((float) selX, (float) typeY,
+                                                     (float) selW, (float) typeH, 8.0f);
+                        g.saveState();
+                        g.reduceClipRegion (segClip);
+                        g.setColour (juce::Colour (0xff2A3038));
+                        g.fillRect (segX, (float) typeY, segW, (float) typeH);
+                        g.restoreState();
+                    }
+
+                    g.setColour (isTypeActive ? juce::Colours::white : juce::Colour (0xff555566));
+                    g.drawText (typeNames[i], (int) segX, typeY, (int) segW, typeH,
+                                juce::Justification::centred, false);
+                }
+
+                // ── Width & Pan knobs ───────────────────────────────────
+                constexpr int knobSize = 40;
+                constexpr int labelH   = 14;
+                const int knobY = typeY + typeH + secGap + 4;
+                const int knobArea = selW / 2;
+                const int knob1X = selX + knobArea / 2 - knobSize / 2;
+                const int knob2X = selX + knobArea + knobArea / 2 - knobSize / 2;
+
+                // Width knob
+                g.setColour (juce::Colour (0xff2A3038));
+                g.fillEllipse ((float) knob1X, (float) knobY,
+                               (float) knobSize, (float) knobSize);
+                g.setColour (juce::Colour (0xff363E4A));
+                g.drawEllipse ((float) knob1X + 0.5f, (float) knobY + 0.5f,
+                               (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
+                g.setColour (juce::Colours::white.withAlpha (0.6f));
+                {
+                    const float kcx = (float) knob1X + (float) knobSize * 0.5f;
+                    g.drawLine (kcx, (float) knobY + (float) knobSize * 0.5f,
+                                kcx, (float) knobY + 4.0f, 1.5f);
+                }
+                g.setColour (kTextMuted);
+                g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.0f)));
+                g.drawText ("Width", knob1X - 5, knobY + knobSize + 2,
+                            knobSize + 10, labelH, juce::Justification::centred, false);
+
+                // Pan knob
+                g.setColour (juce::Colour (0xff2A3038));
+                g.fillEllipse ((float) knob2X, (float) knobY,
+                               (float) knobSize, (float) knobSize);
+                g.setColour (juce::Colour (0xff363E4A));
+                g.drawEllipse ((float) knob2X + 0.5f, (float) knobY + 0.5f,
+                               (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
+                g.setColour (juce::Colours::white.withAlpha (0.6f));
+                {
+                    const float kcx = (float) knob2X + (float) knobSize * 0.5f;
+                    g.drawLine (kcx, (float) knobY + (float) knobSize * 0.5f,
+                                kcx, (float) knobY + 4.0f, 1.5f);
+                }
+                g.setColour (kTextMuted);
+                g.drawText ("Pan", knob2X - 5, knobY + knobSize + 2,
+                            knobSize + 10, labelH, juce::Justification::centred, false);
+
+                // ── Filter section ──────────────────────────────────────
+                const int filtY = knobY + knobSize + labelH + secGap + 4;
+                const int filtH = envEditorFullBounds.getBottom() - innerPad - filtY;
+
+                g.setColour (juce::Colour (0xff181D24));
+                g.fillRoundedRectangle ((float) selX, (float) filtY,
+                                        (float) selW, (float) filtH, 8.0f);
+
+                g.setColour (juce::Colours::white);
+                g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
+                g.drawText ("Filter", selX, filtY + 6, selW, 14,
+                            juce::Justification::centred, false);
+
+                g.setColour (juce::Colour (0xff555566));
+                g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.0f)));
+                const int lblY = filtY + 24;
+                const int lblSpacing = (filtH - 30) / 3;
+                g.drawText ("High Pass", selX, lblY,                  selW, 14, juce::Justification::centred, false);
+                g.drawText ("Mid Bell",  selX, lblY + lblSpacing,     selW, 14, juce::Justification::centred, false);
+                g.drawText ("Low Pass",  selX, lblY + lblSpacing * 2, selW, 14, juce::Justification::centred, false);
+            }
+            else
+            {
+                // ── SAMPLE placeholder ──────────────────────────────────
+                noiseTypeBounds = {};
+
+                const int placY = selY + selH + secGap;
+                const int placH = envEditorFullBounds.getBottom() - innerPad - placY;
+
+                g.setColour (juce::Colour (0xff181D24));
+                g.fillRoundedRectangle ((float) selX, (float) placY,
+                                        (float) selW, (float) placH, 8.0f);
+
+                g.setColour (kNoiseRed.withAlpha (0.35f));
+                g.setFont (juce::Font (juce::FontOptions{}.withHeight (11.0f).withStyle ("Bold")));
+                g.drawText ("Sample Controls", selX, placY, selW, placH / 2,
+                            juce::Justification::centredBottom, false);
+                g.setColour (juce::Colour (0xff555566));
+                g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.0f)));
+                g.drawText ("(Coming Soon)", selX, placY + placH / 2, selW, placH / 2,
+                            juce::Justification::centredTop, false);
+            }
         }
     }
 
