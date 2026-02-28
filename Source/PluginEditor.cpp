@@ -35,7 +35,7 @@ namespace
 
     // ── Tab geometry ──────────────────────────────────────────────────────────
     constexpr int kNumTabs  = 6;
-    constexpr int kTabW     = 90;
+    constexpr int kTabW     = 110;
     constexpr int kTabH     = 28;
     constexpr int kTabGap   = 6;
 
