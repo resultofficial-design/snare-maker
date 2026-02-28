@@ -21,7 +21,6 @@ namespace
     const juce::Colour kPitchBlue  { 0xff4a9eff };
     const juce::Colour kNoiseRed   { 0xffe94560 };
     const juce::Colour kOutTeal    { 0xff00d4aa };
-    const juce::Colour kRoomPurple    { 0xffaa55ff };
     const juce::Colour kTransientOrng { 0xffffaa33 };
     const juce::Colour kResonantGrn   { 0xff55dd77 };
 
@@ -29,9 +28,8 @@ namespace
     constexpr int kWinW    = 960;
     constexpr int kWinH    = 520;
     constexpr int kHeaderH = 50;
-    constexpr int kRoomH   = 72;
     constexpr int kOutputW = 95;
-    constexpr int kMainH   = kWinH - kHeaderH - kRoomH;            // 398
+    constexpr int kMainH   = kWinH - kHeaderH;                     // 470
 
     // ── Tab geometry ──────────────────────────────────────────────────────────
     constexpr int kNumTabs  = 4;
@@ -112,6 +110,19 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     envelopeEditor.connectToParameters (audioProcessor.apvts, audioProcessor.pitchEnvelope,
                                         audioProcessor.envelopeLock);
     addAndMakeVisible (envelopeEditor);
+
+    // ── Preset combo (visual only) ────────────────────────────────────────────
+    presetCombo.addItem ("Init Snare",       1);
+    presetCombo.addItem ("Trap Snare",       2);
+    presetCombo.addItem ("Techno Snare",     3);
+    presetCombo.addItem ("Acoustic Hybrid",  4);
+    presetCombo.addItem ("Metallic Snap",    5);
+    presetCombo.setSelectedId (1, juce::dontSendNotification);
+    presetCombo.setColour (juce::ComboBox::backgroundColourId,  juce::Colour (0xff1E2229));
+    presetCombo.setColour (juce::ComboBox::outlineColourId,     juce::Colour (0xff2A3038));
+    presetCombo.setColour (juce::ComboBox::textColourId,        juce::Colour (0xffffffff));
+    presetCombo.setColour (juce::ComboBox::arrowColourId,       juce::Colour (0xff8888aa));
+    addAndMakeVisible (presetCombo);
 
     // ── Envelope mode buttons ─────────────────────────────────────────────────
     bodyPitchBtn.onClick = [this] { setEnvMode (EnvMode::Pitch); };
@@ -213,11 +224,17 @@ void SnareMakerAudioProcessorEditor::setEnvMode (EnvMode mode)
 void SnareMakerAudioProcessorEditor::resized()
 {
     const int mainTop = kHeaderH;
-    const int roomTop = kWinH - kRoomH;
 
     drumAreaBounds   = { 0,                mainTop, kWinW - kOutputW, kMainH };
     outputZoneBounds = { kWinW - kOutputW, mainTop, kOutputW,         kMainH };
-    roomZoneBounds   = { 0,                roomTop, kWinW,            kRoomH };
+
+    // ── Preset combo in header (right-aligned) ─────────────────────────────
+    {
+        constexpr int comboW = 150, comboH = 24, padR = 12;
+        presetCombo.setBounds (kWinW - padR - comboW,
+                               (kHeaderH - comboH) / 2,
+                               comboW, comboH);
+    }
 
     // ── Layout: [BODY][NOISE] tabs → EnvelopeEditor → [PITCH][AMP] buttons ──
     {
@@ -262,7 +279,6 @@ SnareMakerAudioProcessorEditor::Zone
 SnareMakerAudioProcessorEditor::zoneAt (juce::Point<int> pos) const noexcept
 {
     if (outputZoneBounds.contains (pos)) return Zone::Output;
-    if (roomZoneBounds.contains   (pos)) return Zone::Room;
     return Zone::None;
 }
 
@@ -338,8 +354,6 @@ void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
     paintHeader (g);
 
     paintZone (g, outputZoneBounds, Zone::Output, "OUTPUT", kOutTeal,    {}, true);
-    paintZone (g, roomZoneBounds,   Zone::Room,   "ROOM",   kRoomPurple,
-               { "Reverb  ·  Pre-Delay  ·  Size  ·  Damping" });
 
     paintDrumArea (g, drumAreaBounds);
     paintTabs (g);
@@ -367,10 +381,16 @@ void SnareMakerAudioProcessorEditor::paintHeader (juce::Graphics& g) const
     g.setColour (kDivider);
     g.fillRect (0, kHeaderH - 1, w, 1);
 
-    g.setColour (kTextBright);
-    g.setFont (juce::Font (juce::FontOptions{}.withHeight (22.0f).withStyle ("Bold")));
-    g.drawText ("SNARE MAKER", 0, 2, w, 30, juce::Justification::centred, false);
+    // Small logo text, right-aligned before the preset combo
+    constexpr int logoTextW = 95;
+    constexpr int padR = 12;
+    constexpr int comboW = 150;
+    const int logoX = w - padR - comboW - 8 - logoTextW;
 
+    g.setColour (kTextMuted);
+    g.setFont (juce::Font (juce::FontOptions{}.withHeight (13.0f).withStyle ("Bold")));
+    g.drawText ("Snare Maker", logoX, 0, logoTextW, kHeaderH,
+                juce::Justification::centredRight, false);
 }
 
 // =============================================================================
@@ -420,38 +440,26 @@ void SnareMakerAudioProcessorEditor::paintZone (
 {
     const bool isHovered = (hoveredZone == zone);
     const bool isActive  = (activeZone  == zone);
-    const bool isRoom    = (zone == Zone::Room);
 
     // Background
     g.setColour (isActive ? kBgPanelAct : isHovered ? kBgPanelHov : kBgPanel);
     g.fillRoundedRectangle (bounds.toFloat().reduced (2.0f), 6.0f);
 
-    // Accent border
+    // Accent border (left bar)
     const float borderAlpha = isActive ? 0.90f : isHovered ? 0.50f : 0.18f;
     g.setColour (accent.withAlpha (borderAlpha));
-
-    if (isRoom)
-        g.fillRect ((float) bounds.getX() + 2.0f,
-                    (float) bounds.getY() + 2.0f,
-                    (float) bounds.getWidth() - 4.0f, 2.0f);
-    else
-        g.fillRoundedRectangle ((float) bounds.getX() + 2.0f,
-                                (float) bounds.getY() + 2.0f,
-                                3.0f,
-                                (float) bounds.getHeight() - 4.0f,
-                                1.5f);
+    g.fillRoundedRectangle ((float) bounds.getX() + 2.0f,
+                            (float) bounds.getY() + 2.0f,
+                            3.0f,
+                            (float) bounds.getHeight() - 4.0f,
+                            1.5f);
 
     // Title
     const float titleAlpha = isActive ? 1.0f : isHovered ? 0.80f : 0.50f;
     g.setColour (accent.withAlpha (titleAlpha));
     g.setFont (juce::Font (juce::FontOptions{}.withHeight (11.0f).withStyle ("Bold")));
-
-    if (isRoom)
-        g.drawText (title, bounds.getX() + 14, bounds.getY() + 10,
-                    70, 14, juce::Justification::centredLeft, false);
-    else
-        g.drawText (title, bounds.getX() + 10, bounds.getY() + 14,
-                    bounds.getWidth() - 14, 14, juce::Justification::centred, false);
+    g.drawText (title, bounds.getX() + 10, bounds.getY() + 14,
+                bounds.getWidth() - 14, 14, juce::Justification::centred, false);
 
     // Placeholder hints (only when no real controls yet)
     if (!hasControls)
@@ -459,37 +467,22 @@ void SnareMakerAudioProcessorEditor::paintZone (
         g.setColour (isActive ? kTextMuted : kTextDim);
         g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.5f)));
 
-        if (isRoom)
-        {
-            g.drawText (hints[0], bounds.getX() + 96, bounds.getY() + 10,
-                        bounds.getWidth() - 110, 14,
-                        juce::Justification::centredLeft, false);
-        }
-        else
-        {
-            const int hintStartY = bounds.getY() + 40;
-            for (int i = 0; i < hints.size(); ++i)
-                g.drawText (hints[i],
-                            bounds.getX() + 8, hintStartY + i * 22,
-                            bounds.getWidth() - 16, 16,
-                            juce::Justification::centred, false);
-        }
+        const int hintStartY = bounds.getY() + 40;
+        for (int i = 0; i < hints.size(); ++i)
+            g.drawText (hints[i],
+                        bounds.getX() + 8, hintStartY + i * 22,
+                        bounds.getWidth() - 16, 16,
+                        juce::Justification::centred, false);
 
         if (!isActive)
         {
             const float cAlpha = isHovered ? 0.45f : 0.18f;
             g.setColour (accent.withAlpha (cAlpha));
             g.setFont (juce::Font (juce::FontOptions{}.withHeight (8.5f)));
-
-            if (isRoom)
-                g.drawText ("CLICK TO EXPAND",
-                            bounds.getRight() - 120, bounds.getY() + 10,
-                            110, 14, juce::Justification::centredRight, false);
-            else
-                g.drawText ("CLICK TO EXPAND",
-                            bounds.getX() + 8, bounds.getBottom() - 20,
-                            bounds.getWidth() - 16, 14,
-                            juce::Justification::centred, false);
+            g.drawText ("CLICK TO EXPAND",
+                        bounds.getX() + 8, bounds.getBottom() - 20,
+                        bounds.getWidth() - 16, 14,
+                        juce::Justification::centred, false);
         }
     }
 }

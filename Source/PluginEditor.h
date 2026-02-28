@@ -63,14 +63,13 @@ private:
     void paintTabs    (juce::Graphics&) const;
 
     // ── Zone identifiers ─────────────────────────────────────────────────────
-    enum class Zone { None, Output, Room };
+    enum class Zone { None, Output };
     Zone hoveredZone { Zone::None };
     Zone activeZone  { Zone::None };
 
     // ── Zone rectangles (set in resized()) ───────────────────────────────────
     juce::Rectangle<int> drumAreaBounds;
     juce::Rectangle<int> outputZoneBounds;
-    juce::Rectangle<int> roomZoneBounds;
 
     // ── Lifetime-ordered members ──────────────────────────────────────────────
     //    audioProcessor ref first, lnf before all child components,
@@ -91,6 +90,9 @@ private:
     juce::TextButton noiseAmpBtn  { "AMP" };
 
     void setEnvMode (EnvMode mode);
+
+    // ── Preset combo (visual only) ─────────────────────────────────────────
+    juce::ComboBox presetCombo;
 
     // ── Helpers ───────────────────────────────────────────────────────────────
     Zone zoneAt (juce::Point<int> pos) const noexcept;
