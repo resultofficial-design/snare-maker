@@ -413,6 +413,24 @@ void SnareMakerAudioProcessorEditor::paintTabs (juce::Graphics& g) const
     auto drawTab = [&] (juce::Rectangle<int> bounds, const juce::String& text,
                         juce::Colour accent, bool isActive, bool enabled)
     {
+        const auto bf = bounds.toFloat().reduced (0.5f);
+        constexpr float cr = 10.0f;
+
+        // Background fill
+        const juce::Colour bgCol = !enabled  ? juce::Colour (0xff101318)
+                                   : isActive ? juce::Colour (0xff1E2229)
+                                              : juce::Colour (0xff151a20);
+        g.setColour (bgCol);
+        g.fillRoundedRectangle (bf, cr);
+
+        // Outline stroke (active tab only)
+        if (isActive)
+        {
+            g.setColour (accent.withAlpha (enabled ? 0.35f : 0.12f));
+            g.drawRoundedRectangle (bf, cr, 1.0f);
+        }
+
+        // Text
         const juce::Colour col = enabled ? accent : accent.withSaturation (0.0f).withAlpha (0.18f);
         const float alpha = isActive ? (enabled ? 1.0f : 0.30f) : (enabled ? 0.35f : 0.12f);
         g.setColour (col.withAlpha (alpha));
