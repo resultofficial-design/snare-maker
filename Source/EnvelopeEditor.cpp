@@ -511,7 +511,7 @@ void EnvelopeEditor::paint (juce::Graphics& g)
     const juce::Colour accent (kAccentColour);
 
     // ── 1. Background (rounded fill + clip) ──────────────────────────────────
-    constexpr float kCornerRadius = 10.0f;
+    constexpr float kCornerRadius = 8.0f;
     const auto bounds = getLocalBounds().toFloat();
     juce::Path clipPath;
     clipPath.addRoundedRectangle (bounds, kCornerRadius);
