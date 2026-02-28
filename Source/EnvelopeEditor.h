@@ -111,8 +111,8 @@ private:
     static constexpr int   kSubSegments  = 6;      // quadratic bezier pieces per segment
 
     // Palette (matches main editor)
-    static constexpr juce::uint32 kBgColour    = 0xff0e0e1e;
-    static constexpr juce::uint32 kGridColour  = 0xff1a1a2e;
+    static constexpr juce::uint32 kBgColour    = 0xff1E2229;
+    static constexpr juce::uint32 kGridColour  = 0xff222830;
     static constexpr juce::uint32 kAccentColour = 0xff4a9eff;   // pitch blue
     static constexpr juce::uint32 kNodeFill    = 0xffffffff;
     static constexpr juce::uint32 kNodeBorder  = 0xff4a9eff;

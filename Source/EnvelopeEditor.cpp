@@ -508,28 +508,13 @@ void EnvelopeEditor::paint (juce::Graphics& g)
     const float plotR  = w - kPadX;
     const float plotT  = kPadTop;
     const float plotB  = h - kPadBottom;
-    const float plotCX = (plotL + plotR) * 0.5f;
-    const float plotCY = (plotT + plotB) * 0.5f;
-
     const juce::Colour accent (kAccentColour);
 
-    // ── 1. Background (layered for depth) ────────────────────────────────────
-
-    // Base dark fill
-    g.fillAll (juce::Colour (0xff0a0a16));
-
-    // Subtle centred radial glow
-    {
-        juce::ColourGradient bgGlow (
-            juce::Colour (0xff141430), plotCX, plotCY,
-            juce::Colours::transparentBlack, plotCX, plotCY + h * 0.55f,
-            true);
-        g.setGradientFill (bgGlow);
-        g.fillRect (getLocalBounds());
-    }
+    // ── 1. Background (flat fill) ─────────────────────────────────────────────
+    g.fillAll (juce::Colour (kBgColour));
 
     // ── 2. Plot area frame (subtle border) ───────────────────────────────────
-    g.setColour (juce::Colour (0xff1a1a32));
+    g.setColour (juce::Colour (0xff2A3038));
     g.drawRoundedRectangle (plotL - 1.0f, plotT - 1.0f,
                             plotR - plotL + 2.0f, plotB - plotT + 2.0f,
                             4.0f, 1.0f);
@@ -537,7 +522,7 @@ void EnvelopeEditor::paint (juce::Graphics& g)
     // ── 3. Grid lines ────────────────────────────────────────────────────────
 
     // Boundary lines (slightly brighter)
-    g.setColour (juce::Colour (0xff1e1e38));
+    g.setColour (juce::Colour (0xff2A3038));
     g.drawHorizontalLine ((int) plotT, plotL, plotR);
     g.drawHorizontalLine ((int) plotB, plotL, plotR);
     g.drawVerticalLine   ((int) plotL, plotT, plotB);
@@ -615,12 +600,7 @@ void EnvelopeEditor::paint (juce::Graphics& g)
             fillPath.lineTo (firstPx.x, plotB);
             fillPath.closeSubPath();
 
-            juce::ColourGradient fillGrad (
-                accent.withAlpha (0.20f), 0.0f, plotT,
-                accent.withAlpha (0.0f),  0.0f, plotB,
-                false);
-            fillGrad.addColour (0.45, accent.withAlpha (0.08f));
-            g.setGradientFill (fillGrad);
+            g.setColour (accent.withAlpha (0.10f));
             g.fillPath (fillPath);
         }
 

@@ -7,16 +7,16 @@
 namespace
 {
     // ── Colours ───────────────────────────────────────────────────────────────
-    const juce::Colour kBgWindow   { 0xff0d0d1a };
-    const juce::Colour kBgDrum     { 0xff0e0e1e };
-    const juce::Colour kBgZone     { 0xff111122 };
-    const juce::Colour kBgZoneHov  { 0xff181832 };
-    const juce::Colour kBgZoneAct  { 0xff1c1c38 };
-    const juce::Colour kBgTrack    { 0xff252538 };
+    const juce::Colour kBgWindow   { 0xff101318 };
+    const juce::Colour kBgDrum     { 0xff101318 };
+    const juce::Colour kBgPanel    { 0xff1E2229 };
+    const juce::Colour kBgPanelHov { 0xff242930 };
+    const juce::Colour kBgPanelAct { 0xff2A3038 };
+    const juce::Colour kBgTrack    { 0xff2A3038 };
     const juce::Colour kTextBright { 0xffffffff };
     const juce::Colour kTextMuted  { 0xff8888aa };
     const juce::Colour kTextDim    { 0xff444460 };
-    const juce::Colour kDivider    { 0xff252538 };
+    const juce::Colour kDivider    { 0xff2A3038 };
 
     const juce::Colour kPitchBlue  { 0xff4a9eff };
     const juce::Colour kNoiseRed   { 0xffe94560 };
@@ -54,7 +54,7 @@ SnareMakerAudioProcessorEditor::SnareLookAndFeel::SnareLookAndFeel()
     setColour (juce::Slider::textBoxOutlineColourId,           juce::Colours::transparentBlack);
     setColour (juce::Slider::textBoxHighlightColourId,         kPitchBlue);
     setColour (juce::Label::textColourId,                      kTextBright);
-    setColour (juce::PopupMenu::backgroundColourId,            juce::Colour (0xff181828));
+    setColour (juce::PopupMenu::backgroundColourId,            kBgPanel);
     setColour (juce::PopupMenu::textColourId,                  kTextBright);
     setColour (juce::PopupMenu::highlightedBackgroundColourId, kPitchBlue);
     setColour (juce::PopupMenu::highlightedTextColourId,       kTextBright);
@@ -184,7 +184,7 @@ void SnareMakerAudioProcessorEditor::setEnvMode (EnvMode mode)
     auto styleBtn = [&] (juce::TextButton& btn, bool active, juce::Colour accent)
     {
         btn.setColour (juce::TextButton::buttonColourId,
-                       active ? accent : juce::Colour (0xff181828));
+                       active ? accent : kBgPanel);
         btn.setColour (juce::TextButton::textColourOffId,
                        active ? juce::Colours::white : juce::Colour (0xff8888aa));
     };
@@ -348,7 +348,7 @@ void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
     if (!tabEnabledFor (Tab::Transient) && !tabEnabledFor (Tab::Body)
         && !tabEnabledFor (Tab::Resonant) && !tabEnabledFor (Tab::Noise))
     {
-        g.setColour (juce::Colour (0xbb0d0d1a));
+        g.setColour (juce::Colour (0xbb101318));
         g.fillRect (getLocalBounds());
     }
 }
@@ -361,11 +361,7 @@ void SnareMakerAudioProcessorEditor::paintHeader (juce::Graphics& g) const
 {
     const int w = getWidth();
 
-    juce::ColourGradient hGrad (
-        juce::Colour (0xff0a0a1e), 0.0f, 0.0f,
-        juce::Colour (0xff14142c), 0.0f, (float) kHeaderH,
-        false);
-    g.setGradientFill (hGrad);
+    g.setColour (kBgPanel);
     g.fillRect (0, 0, w, kHeaderH);
 
     g.setColour (kDivider);
@@ -427,7 +423,7 @@ void SnareMakerAudioProcessorEditor::paintZone (
     const bool isRoom    = (zone == Zone::Room);
 
     // Background
-    g.setColour (isActive ? kBgZoneAct : isHovered ? kBgZoneHov : kBgZone);
+    g.setColour (isActive ? kBgPanelAct : isHovered ? kBgPanelHov : kBgPanel);
     g.fillRoundedRectangle (bounds.toFloat().reduced (2.0f), 6.0f);
 
     // Accent border
@@ -508,15 +504,6 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
     g.setColour (kBgDrum);
     g.fillRect (area);
 
-    const float cx = (float) area.getCentreX();
-    const float cy = (float) area.getCentreY();
-    juce::ColourGradient glow (
-        juce::Colour (0xff1a1a32), cx, cy,
-        kBgDrum,                   cx + 200.0f, cy,
-        true);
-    g.setGradientFill (glow);
-    g.fillRect (area);
-
     g.setColour (kDivider);
     g.fillRect (area.getX(),         area.getY(), 1, area.getHeight());
     g.fillRect (area.getRight() - 1, area.getY(), 1, area.getHeight());
@@ -532,11 +519,10 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
 
         const auto sideBox = juce::Rectangle<int> (sideX, envEditorFullBounds.getY(),
                                                    sideW, envEditorFullBounds.getHeight()).toFloat();
-        g.setColour (juce::Colour (0xff0a0a16));
+        g.setColour (kBgPanel);
         g.fillRoundedRectangle (sideBox, 4.0f);
 
-        const juce::Colour sideAccent = (activeTab == Tab::Transient) ? kTransientOrng : kResonantGrn;
-        g.setColour (sideAccent.withAlpha (0.18f));
+        g.setColour (juce::Colour (0xff2A3038));
         g.drawRoundedRectangle (sideBox.reduced (0.5f), 4.0f, 1.0f);
     }
 
@@ -552,35 +538,24 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
         const float plotR = cf.getRight() - padX;
         const float plotT = cf.getY() + padT;
         const float plotB = cf.getBottom() - padB;
-        const float plotCX = (plotL + plotR) * 0.5f;
-        const float plotCY = (plotT + plotB) * 0.5f;
-
         // Dark fill
-        g.setColour (juce::Colour (0xff0a0a16));
-        g.fillRoundedRectangle (cf, 4.0f);
-
-        // Radial glow
-        juce::ColourGradient bgGlow (
-            juce::Colour (0xff141430), plotCX, plotCY,
-            juce::Colours::transparentBlack, plotCX, plotCY + cf.getHeight() * 0.55f,
-            true);
-        g.setGradientFill (bgGlow);
+        g.setColour (kBgPanel);
         g.fillRoundedRectangle (cf, 4.0f);
 
         // Frame
-        g.setColour (juce::Colour (0xff1a1a32));
+        g.setColour (juce::Colour (0xff2A3038));
         g.drawRoundedRectangle (plotL - 1.0f, plotT - 1.0f,
                                 plotR - plotL + 2.0f, plotB - plotT + 2.0f,
                                 4.0f, 1.0f);
 
         // Grid
-        g.setColour (juce::Colour (0xff1e1e38));
+        g.setColour (juce::Colour (0xff2A3038));
         g.drawHorizontalLine ((int) plotT, plotL, plotR);
         g.drawHorizontalLine ((int) plotB, plotL, plotR);
         g.drawVerticalLine   ((int) plotL, plotT, plotB);
         g.drawVerticalLine   ((int) plotR, plotT, plotB);
 
-        g.setColour (juce::Colour (0xff1a1a2e));
+        g.setColour (juce::Colour (0xff222830));
         for (int i = 1; i < 4; ++i)
         {
             const float y = plotT + (float) i / 4.0f * (plotB - plotT);
@@ -623,11 +598,7 @@ void SnareMakerAudioProcessorEditor::paintSnareDrum (
 
     // ── 1. Shell body ─────────────────────────────────────────────────────────
     {
-        juce::ColourGradient sg (
-            juce::Colour (0xff272742), cx - headRx, cy,
-            juce::Colour (0xff181830), cx + headRx, cy,
-            false);
-        g.setGradientFill (sg);
+        g.setColour (juce::Colour (0xff202038));
         g.fillRect (cx - headRx, cy, headRx * 2.0f, shellH);
 
         g.setColour (juce::Colour (0xff353552));
@@ -682,11 +653,7 @@ void SnareMakerAudioProcessorEditor::paintSnareDrum (
 
     // ── 5. Top drum head ──────────────────────────────────────────────────────
     {
-        juce::ColourGradient headGrad (
-            juce::Colour (0xffe2e2ec), cx, cy,
-            juce::Colour (0xff888898), cx + headRx * 0.88f, cy + headRy * 0.78f,
-            true);
-        g.setGradientFill (headGrad);
+        g.setColour (juce::Colour (0xffb8b8c8));
         g.fillEllipse (cx - headRx, cy - headRy, headRx * 2.0f, headRy * 2.0f);
 
         g.setColour (juce::Colour (0x20000000));
