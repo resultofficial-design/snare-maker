@@ -520,22 +520,7 @@ void EnvelopeEditor::paint (juce::Graphics& g)
     g.setColour (juce::Colour (kBgColour));
     g.fillRoundedRectangle (bounds, kCornerRadius);
 
-    // ── 2. Plot area frame (subtle border) ───────────────────────────────────
-    g.setColour (juce::Colour (0xff2A3038));
-    g.drawRoundedRectangle (plotL - 1.0f, plotT - 1.0f,
-                            plotR - plotL + 2.0f, plotB - plotT + 2.0f,
-                            10.0f, 1.0f);
-
-    // ── 3. Grid lines ────────────────────────────────────────────────────────
-
-    // Boundary lines (slightly brighter)
-    g.setColour (juce::Colour (0xff2A3038));
-    g.drawHorizontalLine ((int) plotT, plotL, plotR);
-    g.drawHorizontalLine ((int) plotB, plotL, plotR);
-    g.drawVerticalLine   ((int) plotL, plotT, plotB);
-    g.drawVerticalLine   ((int) plotR, plotT, plotB);
-
-    // Interior grid (dimmer)
+    // ── 2. Grid lines (interior only) ─────────────────────────────────────────
     g.setColour (juce::Colour (kGridColour));
     for (int i = 1; i < kGridLinesH; ++i)
     {
