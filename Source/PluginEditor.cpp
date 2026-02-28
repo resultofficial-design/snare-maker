@@ -550,6 +550,38 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
 
         g.setColour (juce::Colour (0xff2A3038));
         g.drawRoundedRectangle (sideBox.reduced (0.5f), 8.0f, 1.0f);
+
+        // Noise tab: split top container inside the side panel
+        if (activeTab == Tab::Noise)
+        {
+            constexpr int innerPad = 6;
+            const int innerX = sideX + innerPad;
+            const int innerY = envEditorFullBounds.getY() + innerPad;
+            const int innerW = sideW - innerPad * 2;
+            const int innerH = (int) (envEditorFullBounds.getHeight() * 0.30f);
+
+            const auto innerBox = juce::Rectangle<float> ((float) innerX, (float) innerY,
+                                                           (float) innerW, (float) innerH);
+            g.setColour (kBgPanel);
+            g.fillRoundedRectangle (innerBox, 8.0f);
+
+            g.setColour (juce::Colour (0xff2A3038));
+            g.drawRoundedRectangle (innerBox.reduced (0.5f), 8.0f, 1.0f);
+
+            // Vertical divider at centre
+            const float divX = innerBox.getCentreX();
+            g.setColour (juce::Colour (0xff363E4A));
+            g.fillRect (divX, innerBox.getY() + 6.0f, 1.0f, innerBox.getHeight() - 12.0f);
+
+            // Labels
+            g.setColour (kNoiseRed.withAlpha (0.50f));
+            g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
+            const int halfW = innerW / 2;
+            g.drawText ("Noise Generator", innerX, innerY, halfW, innerH,
+                        juce::Justification::centred, false);
+            g.drawText ("Noise Sampler", innerX + halfW, innerY, halfW, innerH,
+                        juce::Justification::centred, false);
+        }
     }
 
     // Transient tab: canvas (no envelope overlay)
