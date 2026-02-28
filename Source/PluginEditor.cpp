@@ -419,7 +419,7 @@ void SnareMakerAudioProcessorEditor::paintTabs (juce::Graphics& g) const
         // Background fill
         const juce::Colour bgCol = !enabled  ? juce::Colour (0xff101318)
                                    : isActive ? juce::Colour (0xff1E2229)
-                                              : juce::Colour (0xff151a20);
+                                              : juce::Colour (0xff1E2229);
         g.setColour (bgCol);
         g.fillRoundedRectangle (bf, cr);
 
@@ -437,15 +437,6 @@ void SnareMakerAudioProcessorEditor::paintTabs (juce::Graphics& g) const
         g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
         g.drawText (text, bounds, juce::Justification::centred, false);
 
-        // Active underline
-        if (isActive)
-        {
-            g.setColour (enabled ? accent : accent.withSaturation (0.0f).withAlpha (0.20f));
-            g.fillRoundedRectangle ((float) bounds.getX() + 8.0f,
-                                    (float) bounds.getBottom() - 2.0f,
-                                    (float) bounds.getWidth() - 16.0f,
-                                    2.0f, 1.0f);
-        }
     };
 
     drawTab (transientTabBounds, "TRANSIENT", kTransientOrng, activeTab == Tab::Transient, tabEnabledFor (Tab::Transient));
