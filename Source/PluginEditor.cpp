@@ -330,17 +330,21 @@ void SnareMakerAudioProcessorEditor::setEnvMode (EnvMode mode)
 
 void SnareMakerAudioProcessorEditor::resized()
 {
-    const int mainTop = kHeaderH;
+    // ── Global outer margin (matches header→tab gap) ─────────────────────────
+    constexpr int kMargin = 6;
 
-    drumAreaBounds   = { 0, mainTop, kWinW - kOutputW, kMainH };
+    auto contentArea = getLocalBounds();
+    contentArea.removeFromTop (kHeaderH);
+    contentArea.reduce (kMargin, 0);
+    contentArea.removeFromBottom (kMargin);
 
-    // Output zone: 6px top gap (matches header→tab), bottom aligns with mode buttons
-    {
-        constexpr int kGap = 6;
-        const int outTop = mainTop + kGap;
-        const int outBot = mainTop + kMainH - kGap;
-        outputZoneBounds = { kWinW - kOutputW, outTop, kOutputW, outBot - outTop };
-    }
+    const int mainTop = contentArea.getY();
+
+    drumAreaBounds   = contentArea.withWidth (contentArea.getWidth() - kOutputW);
+    outputZoneBounds = { contentArea.getRight() - kOutputW,
+                         contentArea.getY() + kMargin,
+                         kOutputW,
+                         contentArea.getHeight() - kMargin };
 
     // ── Output fader (centered in output zone, large) ──────────────────────
     {
