@@ -177,7 +177,7 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     if (showResonant || showNoise)
     {
         auto b = envEditorFullBounds;
-        b.setWidth (b.getWidth() * 4 / 5);
+        b.setWidth (b.getWidth() * 4 / 5 - 30);
         envelopeEditor.setBounds (b);
     }
     else
@@ -539,7 +539,7 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
     // Transient / Resonant / Noise: side panel fills from waveform right edge to Output
     if (activeTab == Tab::Transient || activeTab == Tab::Resonant || activeTab == Tab::Noise)
     {
-        const int waveW = envEditorFullBounds.getWidth() * 4 / 5;
+        const int waveW = envEditorFullBounds.getWidth() * 4 / 5 - 30;
         const int sideX = envEditorFullBounds.getX() + waveW + kSideGap;
         const int sideW = outputZoneBounds.getX() - sideX - kSideGap;
 
@@ -556,7 +556,7 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
     if (activeTab == Tab::Transient)
     {
         auto c = envEditorFullBounds;
-        c.setWidth (c.getWidth() * 4 / 5);
+        c.setWidth (c.getWidth() * 4 / 5 - 30);
         const auto cf = c.toFloat();
 
         const float padX = 24.0f, padT = 20.0f, padB = 20.0f;
