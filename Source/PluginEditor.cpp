@@ -35,8 +35,8 @@ namespace
 
     // ── Tab geometry ──────────────────────────────────────────────────────────
     constexpr int kNumTabs  = 6;
-    constexpr int kTabW     = 70;
-    constexpr int kTabH     = 18;
+    constexpr int kTabW     = 90;
+    constexpr int kTabH     = 28;
     constexpr int kTabGap   = 6;
 
     // ── Side panel gap (Transient / Resonant) ────────────────────────────────
@@ -245,16 +245,17 @@ void SnareMakerAudioProcessorEditor::resized()
         constexpr int envPadX = 20, envPadTop = 6, envPadBot = 6;
         const int cx = drumAreaBounds.getCentreX();
 
-        // Tabs directly above envelope editor
+        // Tabs directly above envelope editor – two groups
         const int tabY = mainTop + envPadTop;
-        const int totalTabW = kTabW * kNumTabs + kTabGap * (kNumTabs - 1);
-        const int tabX = cx - totalTabW / 2;
-        transientTabBounds = { tabX,                                      tabY, kTabW, kTabH };
-        bodyTabBounds      = { tabX + (kTabW + kTabGap),                  tabY, kTabW, kTabH };
-        resonantTabBounds  = { tabX + (kTabW + kTabGap) * 2,             tabY, kTabW, kTabH };
-        noiseTabBounds     = { tabX + (kTabW + kTabGap) * 3,             tabY, kTabW, kTabH };
-        roomTabBounds      = { tabX + (kTabW + kTabGap) * 4,             tabY, kTabW, kTabH };
-        sauceTabBounds     = { tabX + (kTabW + kTabGap) * 5,             tabY, kTabW, kTabH };
+        const int leftX = drumAreaBounds.getX() + envPadX;          // left-aligned
+        transientTabBounds = { leftX,                                     tabY, kTabW, kTabH };
+        bodyTabBounds      = { leftX + (kTabW + kTabGap),                tabY, kTabW, kTabH };
+        resonantTabBounds  = { leftX + (kTabW + kTabGap) * 2,            tabY, kTabW, kTabH };
+        noiseTabBounds     = { leftX + (kTabW + kTabGap) * 3,            tabY, kTabW, kTabH };
+
+        const int rightEnd = drumAreaBounds.getRight() - envPadX;   // right-aligned
+        sauceTabBounds     = { rightEnd - kTabW,                          tabY, kTabW, kTabH };
+        roomTabBounds      = { rightEnd - kTabW * 2 - kTabGap,           tabY, kTabW, kTabH };
 
         // Envelope editor below tabs
         const int envTop = tabY + kTabH + envPadTop;
