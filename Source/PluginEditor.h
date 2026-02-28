@@ -94,8 +94,7 @@ private:
     enum class EnvMode { Pitch, BodyAmp, NoiseAmp, ResonantAmp };
     EnvMode envMode { EnvMode::Pitch };
 
-    juce::TextButton bodyPitchBtn { "PITCH" };
-    juce::TextButton bodyAmpBtn   { "AMP" };
+    juce::Rectangle<int> envModeBounds;   // hit-test for AMP|PITCH selector
     juce::TextButton noiseAmpBtn  { "AMP" };
 
     void setEnvMode (EnvMode mode);

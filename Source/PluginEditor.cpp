@@ -213,11 +213,7 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
         btn.setColour (juce::ComboBox::outlineColourId,    juce::Colours::transparentBlack);
         addAndMakeVisible (btn);
     };
-    bodyPitchBtn.onClick = [this] { setEnvMode (EnvMode::Pitch); };
-    bodyAmpBtn  .onClick = [this] { setEnvMode (EnvMode::BodyAmp); };
     noiseAmpBtn .onClick = [this] { setEnvMode (EnvMode::NoiseAmp); };
-    initModeBtn (bodyPitchBtn);
-    initModeBtn (bodyAmpBtn);
     initModeBtn (noiseAmpBtn);
 
     // Size first so resized() computes all bounds before visibility/styling
@@ -245,8 +241,6 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     const bool showResonant = (tab == Tab::Resonant);
 
     // Envelope mode buttons
-    bodyPitchBtn.setVisible (showBody);
-    bodyAmpBtn  .setVisible (showBody);
     noiseAmpBtn .setVisible (false);
 
     // Envelope editor visible for Body, Noise, and Resonant
@@ -307,13 +301,10 @@ void SnareMakerAudioProcessorEditor::setEnvMode (EnvMode mode)
                        active ? juce::Colours::white : juce::Colour (0xff555566));
     };
 
-    styleBtn (bodyPitchBtn, mode == EnvMode::Pitch,    kPitchBlue);
-    styleBtn (bodyAmpBtn,   mode == EnvMode::BodyAmp,  kPitchBlue);
     styleBtn (noiseAmpBtn,  mode == EnvMode::NoiseAmp, kNoiseRed);
 
-    bodyPitchBtn.repaint();
-    bodyAmpBtn  .repaint();
     noiseAmpBtn .repaint();
+    repaint();
 
     switch (mode)
     {
@@ -365,7 +356,7 @@ void SnareMakerAudioProcessorEditor::resized()
 
     // ── Layout: [BODY][NOISE] tabs → EnvelopeEditor → [PITCH][AMP] buttons ──
     {
-        constexpr int btnH = 32, btnGap = 4;
+        constexpr int btnH = 32;
         constexpr int envPadX = 20, envPadTop = 6, envPadBot = 6;
 
         // Tabs directly above envelope editor – two groups
@@ -389,12 +380,10 @@ void SnareMakerAudioProcessorEditor::resized()
         envEditorFullBounds = { leftX, envTop, rightEnd - leftX, envH };
         envelopeEditor.setBounds (envEditorFullBounds);
 
-        // BODY tab: two buttons spanning full envelope width
+        // BODY tab: AMP|PITCH segmented selector
         const int envL = envEditorFullBounds.getX();
         const int envW = envEditorFullBounds.getWidth();
-        const int halfW = (envW - btnGap) / 2;
-        bodyPitchBtn.setBounds (envL,                    modeBtnY, halfW, btnH);
-        bodyAmpBtn  .setBounds (envL + halfW + btnGap,   modeBtnY, envW - halfW - btnGap, btnH);
+        envModeBounds = { envL, modeBtnY, envW, btnH };
 
         // NOISE tab: single button spanning full envelope width
         noiseAmpBtn .setBounds (envL,                    modeBtnY, envW, btnH);
@@ -471,8 +460,6 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
                     if (!found)
                     {
                         envelopeEditor.setVisible (false);
-                        bodyPitchBtn  .setVisible (false);
-                        bodyAmpBtn    .setVisible (false);
                         noiseAmpBtn   .setVisible (false);
                         noiseFilterVis.setVisible (false);
                         sauceKnob     .setVisible (false);
@@ -526,6 +513,16 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
         return;
     }
 
+    // ── Body AMP|PITCH selector click ────────────────────────────────────
+    if (activeTab == Tab::Body && !envModeBounds.isEmpty()
+        && envModeBounds.contains (e.getPosition()) && !e.mods.isPopupMenu())
+    {
+        const int halfW = envModeBounds.getWidth() / 2;
+        const bool clickedLeft = (e.getPosition().x - envModeBounds.getX()) < halfW;
+        setEnvMode (clickedLeft ? EnvMode::BodyAmp : EnvMode::Pitch);
+        return;
+    }
+
     // ── Noise type selector click ────────────────────────────────────────
     if (activeTab == Tab::Noise && !noiseTypeBounds.isEmpty()
         && noiseTypeBounds.contains (e.getPosition()) && !e.mods.isPopupMenu())
@@ -560,6 +557,55 @@ void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
 
     paintDrumArea (g, drumAreaBounds);
     paintTabs (g);
+
+    // ── Body tab: AMP | PITCH segmented selector ─────────────────────────
+    if (activeTab == Tab::Body && !envModeBounds.isEmpty())
+    {
+        const auto b  = envModeBounds;
+        const int  hw = b.getWidth() / 2;
+        const bool ampActive = (envMode == EnvMode::BodyAmp);
+
+        // Left half (AMP)
+        {
+            juce::Path clip;
+            clip.addRoundedRectangle ((float) b.getX(), (float) b.getY(),
+                                      (float) hw, (float) b.getHeight(),
+                                      8.0f, 8.0f, true, false, true, false);
+            g.saveState();
+            g.reduceClipRegion (clip);
+            g.setColour (ampActive ? juce::Colour (0xff1E2229) : juce::Colour (0xff181C22));
+            g.fillRect (b.getX(), b.getY(), hw, b.getHeight());
+            g.restoreState();
+        }
+
+        // Right half (PITCH)
+        {
+            juce::Path clip;
+            clip.addRoundedRectangle ((float) (b.getX() + hw), (float) b.getY(),
+                                      (float) (b.getWidth() - hw), (float) b.getHeight(),
+                                      8.0f, 8.0f, false, true, false, true);
+            g.saveState();
+            g.reduceClipRegion (clip);
+            g.setColour (ampActive ? juce::Colour (0xff181C22) : juce::Colour (0xff1E2229));
+            g.fillRect (b.getX() + hw, b.getY(), b.getWidth() - hw, b.getHeight());
+            g.restoreState();
+        }
+
+        // Divider
+        g.setColour (juce::Colour (0xff363E4A));
+        g.fillRect ((float) (b.getX() + hw), (float) b.getY(), 1.0f, (float) b.getHeight());
+
+        // Labels
+        g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
+
+        g.setColour (ampActive ? juce::Colours::white : juce::Colour (0xff555566));
+        g.drawText ("AMP", b.getX(), b.getY(), hw, b.getHeight(),
+                    juce::Justification::centred, false);
+
+        g.setColour (ampActive ? juce::Colour (0xff555566) : juce::Colours::white);
+        g.drawText ("PITCH", b.getX() + hw, b.getY(), b.getWidth() - hw, b.getHeight(),
+                    juce::Justification::centred, false);
+    }
 
     // Global grey-out when every layer tab is disabled
     if (!tabEnabledFor (Tab::Transient) && !tabEnabledFor (Tab::Body)
