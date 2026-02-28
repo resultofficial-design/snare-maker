@@ -39,8 +39,8 @@ namespace
     constexpr int kTabH     = 28;
     constexpr int kTabGap   = 6;
 
-    // ── Side panel gap (Transient / Resonant) ────────────────────────────────
-    constexpr int kSideGap = 6;
+    // ── Uniform layout spacing ───────────────────────────────────────────────
+    constexpr int kUISpacing = 16;
 }
 
 // =============================================================================
@@ -321,21 +321,17 @@ void SnareMakerAudioProcessorEditor::setEnvMode (EnvMode mode)
 
 void SnareMakerAudioProcessorEditor::resized()
 {
-    // ── Global outer margin (matches header→tab gap) ─────────────────────────
-    constexpr int kMargin = 6;
-
+    // ── Content area with uniform margins ───────────────────────────────────
     auto contentArea = getLocalBounds();
     contentArea.removeFromTop (kHeaderH);
-    contentArea.reduce (kMargin, 0);
-    contentArea.removeFromBottom (kMargin);
+    contentArea.removeFromTop (kUISpacing);       // header → content gap
+    contentArea.reduce (kUISpacing, 0);            // left / right margins
+    contentArea.removeFromBottom (kUISpacing);     // bottom margin
 
-    const int mainTop = contentArea.getY();
-
-    drumAreaBounds   = contentArea.withWidth (contentArea.getWidth() - kOutputW);
-    outputZoneBounds = { contentArea.getRight() - kOutputW,
-                         contentArea.getY() + kMargin,
-                         kOutputW,
-                         contentArea.getHeight() - kMargin };
+    // Split: main area | kUISpacing gap | output zone
+    drumAreaBounds   = contentArea.withWidth (contentArea.getWidth() - kOutputW - kUISpacing);
+    outputZoneBounds = { contentArea.getRight() - kOutputW, contentArea.getY(),
+                         kOutputW, contentArea.getHeight() };
 
     // ── Output fader (centered in output zone, large) ──────────────────────
     {
@@ -354,29 +350,28 @@ void SnareMakerAudioProcessorEditor::resized()
                                comboW, comboH);
     }
 
-    // ── Layout: [BODY][NOISE] tabs → EnvelopeEditor → [PITCH][AMP] buttons ──
+    // ── Layout: tabs → envelope → mode selector ──────────────────────────────
     {
         constexpr int btnH = 32;
-        constexpr int envPadX = 20, envPadTop = 6, envPadBot = 6;
 
-        // Tabs directly above envelope editor – two groups
-        const int tabY = mainTop + envPadTop;
-        const int leftX = drumAreaBounds.getX() + envPadX;          // left-aligned
-        transientTabBounds = { leftX,                                     tabY, kTabW, kTabH };
-        bodyTabBounds      = { leftX + (kTabW + kTabGap),                tabY, kTabW, kTabH };
-        resonantTabBounds  = { leftX + (kTabW + kTabGap) * 2,            tabY, kTabW, kTabH };
-        noiseTabBounds     = { leftX + (kTabW + kTabGap) * 3,            tabY, kTabW, kTabH };
+        // Tabs at top of drum area
+        const int tabY  = drumAreaBounds.getY();
+        const int leftX = drumAreaBounds.getX();
+        transientTabBounds = { leftX,                          tabY, kTabW, kTabH };
+        bodyTabBounds      = { leftX + (kTabW + kTabGap),     tabY, kTabW, kTabH };
+        resonantTabBounds  = { leftX + (kTabW + kTabGap) * 2, tabY, kTabW, kTabH };
+        noiseTabBounds     = { leftX + (kTabW + kTabGap) * 3, tabY, kTabW, kTabH };
 
-        const int rightEnd = outputZoneBounds.getX() - 6;            // 6px gap to output
-        sauceTabBounds     = { rightEnd - kTabW,                          tabY, kTabW, kTabH };
-        roomTabBounds      = { rightEnd - kTabW * 2 - kTabGap,           tabY, kTabW, kTabH };
+        const int rightEnd = drumAreaBounds.getRight();
+        sauceTabBounds     = { rightEnd - kTabW,                 tabY, kTabW, kTabH };
+        roomTabBounds      = { rightEnd - kTabW * 2 - kTabGap,  tabY, kTabW, kTabH };
 
-        // Envelope editor below tabs
-        const int envTop = tabY + kTabH + envPadTop;
-        // Mode buttons below envelope editor
-        const int modeBtnY = drumAreaBounds.getBottom() - envPadBot - btnH;
-        // Envelope fills the space between tabs and mode buttons
-        const int envH = modeBtnY - envPadBot - envTop;
+        // Envelope editor below tabs (kUISpacing gap)
+        const int envTop   = tabY + kTabH + kUISpacing;
+        // Mode selector at bottom of drum area
+        const int modeBtnY = drumAreaBounds.getBottom() - btnH;
+        // Envelope fills space between tabs and mode selector (kUISpacing gaps)
+        const int envH     = modeBtnY - kUISpacing - envTop;
         envEditorFullBounds = { leftX, envTop, rightEnd - leftX, envH };
         envelopeEditor.setBounds (envEditorFullBounds);
 
@@ -392,8 +387,8 @@ void SnareMakerAudioProcessorEditor::resized()
     // ── Noise filter visualizer bounds (computed from side panel geometry) ──
     {
         const int waveW = envEditorFullBounds.getWidth() * 4 / 5 - 30;
-        const int sideX = envEditorFullBounds.getX() + waveW + kSideGap;
-        const int sideW = outputZoneBounds.getX() - sideX - kSideGap;
+        const int sideX = envEditorFullBounds.getX() + waveW + kUISpacing;
+        const int sideW = outputZoneBounds.getX() - sideX - kUISpacing;
 
         constexpr int innerPad = 6;
         constexpr int selH     = 28;
@@ -753,8 +748,8 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
     if (activeTab == Tab::Transient || activeTab == Tab::Resonant || activeTab == Tab::Noise)
     {
         const int waveW = envEditorFullBounds.getWidth() * 4 / 5 - 30;
-        const int sideX = envEditorFullBounds.getX() + waveW + kSideGap;
-        const int sideW = outputZoneBounds.getX() - sideX - kSideGap;
+        const int sideX = envEditorFullBounds.getX() + waveW + kUISpacing;
+        const int sideW = outputZoneBounds.getX() - sideX - kUISpacing;
 
         const auto sideBox = juce::Rectangle<int> (sideX, envEditorFullBounds.getY(),
                                                    sideW, envEditorFullBounds.getHeight()).toFloat();
