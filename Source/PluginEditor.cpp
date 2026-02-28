@@ -23,6 +23,8 @@ namespace
     const juce::Colour kOutTeal    { 0xff00d4aa };
     const juce::Colour kTransientOrng { 0xffffaa33 };
     const juce::Colour kResonantGrn   { 0xff55dd77 };
+    const juce::Colour kRoomPurple    { 0xffaa55ff };
+    const juce::Colour kSaucePink     { 0xffff6699 };
 
     // ── Window / section widths ────────────────────────────────────────────────
     constexpr int kWinW    = 960;
@@ -32,7 +34,7 @@ namespace
     constexpr int kMainH   = kWinH - kHeaderH;                     // 470
 
     // ── Tab geometry ──────────────────────────────────────────────────────────
-    constexpr int kNumTabs  = 4;
+    constexpr int kNumTabs  = 6;
     constexpr int kTabW     = 70;
     constexpr int kTabH     = 18;
     constexpr int kTabGap   = 6;
@@ -180,6 +182,7 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     if (showBody)          setEnvMode (EnvMode::Pitch);
     else if (showNoise)    setEnvMode (EnvMode::NoiseAmp);
     else if (showResonant) setEnvMode (EnvMode::ResonantAmp);
+    // Room and Sauce: no envelope / no mode buttons (placeholder only)
 
     repaint();
 }
@@ -250,6 +253,8 @@ void SnareMakerAudioProcessorEditor::resized()
         bodyTabBounds      = { tabX + (kTabW + kTabGap),                  tabY, kTabW, kTabH };
         resonantTabBounds  = { tabX + (kTabW + kTabGap) * 2,             tabY, kTabW, kTabH };
         noiseTabBounds     = { tabX + (kTabW + kTabGap) * 3,             tabY, kTabW, kTabH };
+        roomTabBounds      = { tabX + (kTabW + kTabGap) * 4,             tabY, kTabW, kTabH };
+        sauceTabBounds     = { tabX + (kTabW + kTabGap) * 5,             tabY, kTabW, kTabH };
 
         // Envelope editor below tabs
         const int envTop = tabY + kTabH + envPadTop;
@@ -306,7 +311,7 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
                 // If we just disabled the active tab, jump to the next enabled one
                 if (!tabEnabledFor (tab) && activeTab == tab)
                 {
-                    constexpr Tab order[] = { Tab::Transient, Tab::Body, Tab::Resonant, Tab::Noise };
+                    constexpr Tab order[] = { Tab::Transient, Tab::Body, Tab::Resonant, Tab::Noise, Tab::Room, Tab::Sauce };
                     for (auto t : order)
                         if (tabEnabledFor (t)) { setActiveTab (t); break; }
                 }
@@ -320,6 +325,8 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
         if (tryToggle (bodyTabBounds,      Tab::Body))      return;
         if (tryToggle (resonantTabBounds,  Tab::Resonant))  return;
         if (tryToggle (noiseTabBounds,     Tab::Noise))     return;
+        if (tryToggle (roomTabBounds,      Tab::Room))      return;
+        if (tryToggle (sauceTabBounds,     Tab::Sauce))     return;
     }
 
     // ── Left-click: switch active tab (only if enabled) ─────────────────────
@@ -333,6 +340,8 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
     if (tryTab (bodyTabBounds,      Tab::Body))      return;
     if (tryTab (resonantTabBounds,  Tab::Resonant))  return;
     if (tryTab (noiseTabBounds,     Tab::Noise))     return;
+    if (tryTab (roomTabBounds,      Tab::Room))      return;
+    if (tryTab (sauceTabBounds,     Tab::Sauce))     return;
 
     const Zone z = zoneAt (e.getPosition());
     if (z != Zone::None && z != activeZone) { activeZone = z; repaint(); }
@@ -360,7 +369,8 @@ void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
 
     // Global grey-out when every layer tab is disabled
     if (!tabEnabledFor (Tab::Transient) && !tabEnabledFor (Tab::Body)
-        && !tabEnabledFor (Tab::Resonant) && !tabEnabledFor (Tab::Noise))
+        && !tabEnabledFor (Tab::Resonant) && !tabEnabledFor (Tab::Noise)
+        && !tabEnabledFor (Tab::Room) && !tabEnabledFor (Tab::Sauce))
     {
         g.setColour (juce::Colour (0xbb101318));
         g.fillRect (getLocalBounds());
@@ -423,6 +433,8 @@ void SnareMakerAudioProcessorEditor::paintTabs (juce::Graphics& g) const
     drawTab (bodyTabBounds,      "BODY",      kPitchBlue,     activeTab == Tab::Body,      tabEnabledFor (Tab::Body));
     drawTab (resonantTabBounds,  "RESONANT",  kResonantGrn,   activeTab == Tab::Resonant,  tabEnabledFor (Tab::Resonant));
     drawTab (noiseTabBounds,     "NOISE",     kNoiseRed,      activeTab == Tab::Noise,     tabEnabledFor (Tab::Noise));
+    drawTab (roomTabBounds,      "ROOM",      kRoomPurple,    activeTab == Tab::Room,      tabEnabledFor (Tab::Room));
+    drawTab (sauceTabBounds,     "SAUCE",     kSaucePink,     activeTab == Tab::Sauce,     tabEnabledFor (Tab::Sauce));
 }
 
 // =============================================================================
@@ -566,6 +578,22 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
         g.drawText ("Drag & Drop Sample Here",
                     (int) plotL, (int) plotT, (int) (plotR - plotL), (int) (plotB - plotT),
                     juce::Justification::centred, false);
+    }
+
+    // Room / Sauce: centred placeholder text
+    if (activeTab == Tab::Room)
+    {
+        g.setColour (kRoomPurple.withAlpha (0.40f));
+        g.setFont (juce::Font (juce::FontOptions{}.withHeight (15.0f).withStyle ("Bold")));
+        g.drawText ("Room Module (Coming Soon)",
+                    area, juce::Justification::centred, false);
+    }
+    else if (activeTab == Tab::Sauce)
+    {
+        g.setColour (kSaucePink.withAlpha (0.40f));
+        g.setFont (juce::Font (juce::FontOptions{}.withHeight (15.0f).withStyle ("Bold")));
+        g.drawText ("Sauce Module (Coming Soon)",
+                    area, juce::Justification::centred, false);
     }
 
     g.setColour (kTextDim);

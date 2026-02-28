@@ -46,7 +46,7 @@ private:
     };
 
     // ── Top-level tabs ──────────────────────────────────────────────────────
-    enum class Tab { Transient, Body, Resonant, Noise };
+    enum class Tab { Transient, Body, Resonant, Noise, Room, Sauce };
     Tab activeTab  { Tab::Body };
     Tab hoveredTab { Tab::Body };
 
@@ -54,8 +54,10 @@ private:
     juce::Rectangle<int> bodyTabBounds;
     juce::Rectangle<int> resonantTabBounds;
     juce::Rectangle<int> noiseTabBounds;
+    juce::Rectangle<int> roomTabBounds;
+    juce::Rectangle<int> sauceTabBounds;
 
-    bool tabEnabled[4] { true, true, true, true };   // Transient, Body, Resonant, Noise
+    bool tabEnabled[6] { true, true, true, true, true, true };
     bool& tabEnabledFor (Tab tab)       { return tabEnabled[static_cast<int>(tab)]; }
     bool  tabEnabledFor (Tab tab) const { return tabEnabled[static_cast<int>(tab)]; }
 
