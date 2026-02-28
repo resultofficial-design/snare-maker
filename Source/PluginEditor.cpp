@@ -121,7 +121,7 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     presetCombo.addItem ("Metallic Snap",    5);
     presetCombo.setSelectedId (1, juce::dontSendNotification);
     presetCombo.setColour (juce::ComboBox::backgroundColourId,  juce::Colour (0xff1E2229));
-    presetCombo.setColour (juce::ComboBox::outlineColourId,     juce::Colour (0xff2A3038));
+    presetCombo.setColour (juce::ComboBox::outlineColourId,     juce::Colours::transparentBlack);
     presetCombo.setColour (juce::ComboBox::textColourId,        juce::Colour (0xffffffff));
     presetCombo.setColour (juce::ComboBox::arrowColourId,       juce::Colour (0xff8888aa));
     addAndMakeVisible (presetCombo);
@@ -355,6 +355,15 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
     if (tryTab (roomTabBounds,      Tab::Room))      return;
     if (tryTab (sauceTabBounds,     Tab::Sauce))     return;
 
+    // ── Noise GEN/SAMPLE selector toggle ────────────────────────────────
+    if (activeTab == Tab::Noise && !noiseSrcBounds.isEmpty()
+        && noiseSrcBounds.contains (e.getPosition()) && !e.mods.isPopupMenu())
+    {
+        noiseSrc = (noiseSrc == NoiseSrc::Gen) ? NoiseSrc::Sample : NoiseSrc::Gen;
+        repaint();
+        return;
+    }
+
     const Zone z = zoneAt (e.getPosition());
     if (z != Zone::None && z != activeZone) { activeZone = z; repaint(); }
 }
@@ -399,9 +408,6 @@ void SnareMakerAudioProcessorEditor::paintHeader (juce::Graphics& g) const
 
     g.setColour (kBgPanel);
     g.fillRect (0, 0, w, kHeaderH);
-
-    g.setColour (kDivider);
-    g.fillRect (0, kHeaderH - 1, w, 1);
 
     // Small logo text, right-aligned before the preset combo
     constexpr int logoTextW = 95;
@@ -525,14 +531,10 @@ void SnareMakerAudioProcessorEditor::paintZone (
 // =============================================================================
 
 void SnareMakerAudioProcessorEditor::paintDrumArea (
-    juce::Graphics& g, juce::Rectangle<int> area) const
+    juce::Graphics& g, juce::Rectangle<int> area)
 {
     g.setColour (kBgDrum);
     g.fillRect (area);
-
-    g.setColour (kDivider);
-    g.fillRect (area.getX(),         area.getY(), 1, area.getHeight());
-    g.fillRect (area.getRight() - 1, area.getY(), 1, area.getHeight());
 
     paintSnareDrum (g, area);
 
@@ -548,38 +550,61 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
         g.setColour (kBgPanel);
         g.fillRoundedRectangle (sideBox, 8.0f);
 
-        g.setColour (juce::Colour (0xff2A3038));
-        g.drawRoundedRectangle (sideBox.reduced (0.5f), 8.0f, 1.0f);
-
-        // Noise tab: split top container inside the side panel
+        // Noise tab: compact GEN / SAMPLE selector at top of side panel
         if (activeTab == Tab::Noise)
         {
             constexpr int innerPad = 6;
-            const int innerX = sideX + innerPad;
-            const int innerY = envEditorFullBounds.getY() + innerPad;
-            const int innerW = sideW - innerPad * 2;
-            const int innerH = (int) (envEditorFullBounds.getHeight() * 0.30f);
+            constexpr int selH     = 28;
+            const int selX = sideX + innerPad;
+            const int selY = envEditorFullBounds.getY() + innerPad;
+            const int selW = sideW - innerPad * 2;
+            const int halfW = selW / 2;
 
-            const auto innerBox = juce::Rectangle<float> ((float) innerX, (float) innerY,
-                                                           (float) innerW, (float) innerH);
-            g.setColour (kBgPanel);
-            g.fillRoundedRectangle (innerBox, 8.0f);
+            // Store bounds for hit-testing
+            noiseSrcBounds = { selX, selY, selW, selH };
 
-            g.setColour (juce::Colour (0xff2A3038));
-            g.drawRoundedRectangle (innerBox.reduced (0.5f), 8.0f, 1.0f);
+            const bool genActive = (noiseSrc == NoiseSrc::Gen);
 
-            // Vertical divider at centre
-            const float divX = innerBox.getCentreX();
+            // Left half (GEN) — clip to left rounded rect
+            {
+                juce::Path leftClip;
+                leftClip.addRoundedRectangle ((float) selX, (float) selY,
+                                              (float) halfW, (float) selH,
+                                              8.0f, 8.0f, true, false, true, false);
+                g.saveState();
+                g.reduceClipRegion (leftClip);
+                g.setColour (genActive ? juce::Colour (0xff2A3038) : juce::Colour (0xff181D24));
+                g.fillRect (selX, selY, halfW, selH);
+                g.restoreState();
+            }
+
+            // Right half (SAMPLE) — clip to right rounded rect
+            {
+                juce::Path rightClip;
+                rightClip.addRoundedRectangle ((float) (selX + halfW), (float) selY,
+                                               (float) (selW - halfW), (float) selH,
+                                               8.0f, 8.0f, false, true, false, true);
+                g.saveState();
+                g.reduceClipRegion (rightClip);
+                g.setColour (genActive ? juce::Colour (0xff181D24) : juce::Colour (0xff2A3038));
+                g.fillRect (selX + halfW, selY, selW - halfW, selH);
+                g.restoreState();
+            }
+
+            // Vertical divider
+            const float divX = (float) selX + (float) halfW;
             g.setColour (juce::Colour (0xff363E4A));
-            g.fillRect (divX, innerBox.getY() + 6.0f, 1.0f, innerBox.getHeight() - 12.0f);
+            g.fillRect (divX, (float) selY, 1.0f, (float) selH);
 
             // Labels
-            g.setColour (kNoiseRed.withAlpha (0.50f));
             g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
-            const int halfW = innerW / 2;
-            g.drawText ("Noise Generator", innerX, innerY, halfW, innerH,
+
+            g.setColour (genActive ? juce::Colours::white : juce::Colour (0xff555566));
+            g.drawText ("GEN", selX, selY, halfW, selH,
                         juce::Justification::centred, false);
-            g.drawText ("Noise Sampler", innerX + halfW, innerY, halfW, innerH,
+
+            g.setColour (genActive ? juce::Colour (0xff555566) : juce::Colours::white);
+            g.drawText ("SAMPLE", selX + halfW, selY, selW - halfW, selH,
                         juce::Justification::centred, false);
         }
     }
@@ -600,19 +625,7 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
         g.setColour (kBgPanel);
         g.fillRoundedRectangle (cf, 8.0f);
 
-        // Frame
-        g.setColour (juce::Colour (0xff2A3038));
-        g.drawRoundedRectangle (plotL - 1.0f, plotT - 1.0f,
-                                plotR - plotL + 2.0f, plotB - plotT + 2.0f,
-                                8.0f, 1.0f);
-
         // Grid
-        g.setColour (juce::Colour (0xff2A3038));
-        g.drawHorizontalLine ((int) plotT, plotL, plotR);
-        g.drawHorizontalLine ((int) plotB, plotL, plotR);
-        g.drawVerticalLine   ((int) plotL, plotT, plotB);
-        g.drawVerticalLine   ((int) plotR, plotT, plotB);
-
         g.setColour (juce::Colour (0xff222830));
         for (int i = 1; i < 4; ++i)
         {
