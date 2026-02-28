@@ -168,13 +168,13 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     // Envelope mode buttons
     bodyPitchBtn.setVisible (showBody);
     bodyAmpBtn  .setVisible (showBody);
-    noiseAmpBtn .setVisible (showNoise);
+    noiseAmpBtn .setVisible (false);
 
     // Envelope editor visible for Body, Noise, and Resonant
     envelopeEditor.setVisible (showBody || showNoise || showResonant);
 
-    // Resonant tab: envelope at 80% of full width (side panel fills the rest)
-    if (showResonant)
+    // Resonant / Noise tab: envelope at 80% of full width (side panel fills the rest)
+    if (showResonant || showNoise)
     {
         auto b = envEditorFullBounds;
         b.setWidth (b.getWidth() * 4 / 5);
@@ -536,8 +536,8 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
 
     paintSnareDrum (g, area);
 
-    // Transient / Resonant: side panel fills from waveform right edge to Output
-    if (activeTab == Tab::Transient || activeTab == Tab::Resonant)
+    // Transient / Resonant / Noise: side panel fills from waveform right edge to Output
+    if (activeTab == Tab::Transient || activeTab == Tab::Resonant || activeTab == Tab::Noise)
     {
         const int waveW = envEditorFullBounds.getWidth() * 4 / 5;
         const int sideX = envEditorFullBounds.getX() + waveW + kSideGap;
