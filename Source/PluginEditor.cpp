@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "BinaryData.h"
 
 // =============================================================================
 // File-local colour palette and layout constants
@@ -49,6 +50,11 @@ namespace
 
 SnareMakerAudioProcessorEditor::SnareLookAndFeel::SnareLookAndFeel()
 {
+    interRegular = juce::Typeface::createSystemTypefaceFor (
+        BinaryData::InterRegular_ttf, BinaryData::InterRegular_ttfSize);
+    interMedium  = juce::Typeface::createSystemTypefaceFor (
+        BinaryData::InterMedium_ttf,  BinaryData::InterMedium_ttfSize);
+
     setColour (juce::Slider::textBoxTextColourId,              kTextMuted);
     setColour (juce::Slider::textBoxBackgroundColourId,        kBgWindow);
     setColour (juce::Slider::textBoxOutlineColourId,           juce::Colours::transparentBlack);
@@ -59,6 +65,35 @@ SnareMakerAudioProcessorEditor::SnareLookAndFeel::SnareLookAndFeel()
     setColour (juce::PopupMenu::highlightedBackgroundColourId, kPitchBlue);
     setColour (juce::PopupMenu::highlightedTextColourId,       kTextBright);
 }
+
+juce::Typeface::Ptr SnareMakerAudioProcessorEditor::SnareLookAndFeel::getTypefaceForFont (
+    const juce::Font& font)
+{
+    if (font.getTypefaceStyle().containsIgnoreCase ("Bold"))
+        return interMedium;
+    return interRegular;
+}
+
+juce::Font SnareMakerAudioProcessorEditor::SnareLookAndFeel::getLabelFont (juce::Label&)
+{ return juce::Font (juce::FontOptions{}.withTypeface (interRegular)).withHeight (14.0f); }
+
+juce::Font SnareMakerAudioProcessorEditor::SnareLookAndFeel::getTextButtonFont (juce::TextButton&, int buttonHeight)
+{ return juce::Font (juce::FontOptions{}.withTypeface (interMedium)).withHeight ((float) buttonHeight * 0.45f); }
+
+juce::Font SnareMakerAudioProcessorEditor::SnareLookAndFeel::getComboBoxFont (juce::ComboBox&)
+{ return juce::Font (juce::FontOptions{}.withTypeface (interRegular)).withHeight (14.0f); }
+
+juce::Font SnareMakerAudioProcessorEditor::SnareLookAndFeel::getPopupMenuFont ()
+{ return juce::Font (juce::FontOptions{}.withTypeface (interRegular)).withHeight (14.0f); }
+
+juce::Font SnareMakerAudioProcessorEditor::SnareLookAndFeel::getSliderPopupFont (juce::Slider&)
+{ return juce::Font (juce::FontOptions{}.withTypeface (interRegular)).withHeight (13.0f); }
+
+juce::Font SnareMakerAudioProcessorEditor::SnareLookAndFeel::interRegularFont (float height) const
+{ return juce::Font (juce::FontOptions{}.withTypeface (interRegular)).withHeight (height); }
+
+juce::Font SnareMakerAudioProcessorEditor::SnareLookAndFeel::interMediumFont (float height) const
+{ return juce::Font (juce::FontOptions{}.withTypeface (interMedium)).withHeight (height); }
 
 void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawLinearSlider (
     juce::Graphics& g,
@@ -598,7 +633,7 @@ void SnareMakerAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRect ((float) (b.getX() + hw), (float) b.getY(), 1.0f, (float) b.getHeight());
 
         // Labels
-        g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
+        g.setFont (lnf.interMediumFont (10.0f));
 
         g.setColour (ampActive ? juce::Colours::white : juce::Colour (0xff555566));
         g.drawText ("AMP", b.getX(), b.getY(), hw, b.getHeight(),
@@ -637,7 +672,7 @@ void SnareMakerAudioProcessorEditor::paintHeader (juce::Graphics& g) const
     const int logoX = w - padR - comboW - 8 - logoTextW;
 
     g.setColour (kTextMuted);
-    g.setFont (juce::Font (juce::FontOptions{}.withHeight (13.0f).withStyle ("Bold")));
+    g.setFont (lnf.interMediumFont (13.0f));
     g.drawText ("Snare Maker", logoX, 0, logoTextW, kHeaderH,
                 juce::Justification::centredRight, false);
 }
@@ -672,7 +707,7 @@ void SnareMakerAudioProcessorEditor::paintTabs (juce::Graphics& g) const
         const juce::Colour col = enabled ? accent : accent.withSaturation (0.0f).withAlpha (0.18f);
         const float alpha = isActive ? (enabled ? 1.0f : 0.30f) : (enabled ? 0.35f : 0.12f);
         g.setColour (col.withAlpha (alpha));
-        g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
+        g.setFont (lnf.interMediumFont (10.0f));
         g.drawText (text, bounds, juce::Justification::centred, false);
 
     };
@@ -708,7 +743,7 @@ void SnareMakerAudioProcessorEditor::paintZone (
     // Title
     const float titleAlpha = isActive ? 1.0f : isHovered ? 0.80f : 0.50f;
     g.setColour (kTextMuted.withAlpha (titleAlpha));
-    g.setFont (juce::Font (juce::FontOptions{}.withHeight (11.0f)));
+    g.setFont (lnf.interRegularFont (11.0f));
     g.drawText (title, bounds.getX() + 10, bounds.getY() + 14,
                 bounds.getWidth() - 14, 14, juce::Justification::centred, false);
 
@@ -716,7 +751,7 @@ void SnareMakerAudioProcessorEditor::paintZone (
     if (!hasControls)
     {
         g.setColour (isActive ? kTextMuted : kTextDim);
-        g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.5f)));
+        g.setFont (lnf.interRegularFont (9.5f));
 
         const int hintStartY = bounds.getY() + 40;
         for (int i = 0; i < hints.size(); ++i)
@@ -729,7 +764,7 @@ void SnareMakerAudioProcessorEditor::paintZone (
         {
             const float cAlpha = isHovered ? 0.45f : 0.18f;
             g.setColour (accent.withAlpha (cAlpha));
-            g.setFont (juce::Font (juce::FontOptions{}.withHeight (8.5f)));
+            g.setFont (lnf.interRegularFont (8.5f));
             g.drawText ("CLICK TO EXPAND",
                         bounds.getX() + 8, bounds.getBottom() - 20,
                         bounds.getWidth() - 16, 14,
@@ -810,7 +845,7 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             g.fillRect (divX, (float) selY, 1.0f, (float) selH);
 
             // Labels
-            g.setFont (juce::Font (juce::FontOptions{}.withHeight (10.0f).withStyle ("Bold")));
+            g.setFont (lnf.interMediumFont (10.0f));
 
             g.setColour (genActive ? juce::Colours::white : juce::Colour (0xff555566));
             g.drawText ("GEN", selX, selY, halfW, selH,
@@ -837,7 +872,7 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
                 g.fillRoundedRectangle ((float) selX, (float) typeY,
                                         (float) selW, (float) typeH, 8.0f);
 
-                g.setFont (juce::Font (juce::FontOptions{}.withHeight (8.5f).withStyle ("Bold")));
+                g.setFont (lnf.interMediumFont (8.5f));
                 const float segW = (float) selW / (float) kNumTypes;
                 for (int i = 0; i < kNumTypes; ++i)
                 {
@@ -883,7 +918,7 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
                                 kcx, (float) knobY + 4.0f, 1.5f);
                 }
                 g.setColour (kTextMuted);
-                g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.0f)));
+                g.setFont (lnf.interRegularFont (9.0f));
                 g.drawText ("Width", knob1X - 5, knobY + knobSize + 2,
                             knobSize + 10, labelH, juce::Justification::centred, false);
 
@@ -919,11 +954,11 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
                                         (float) selW, (float) placH, 8.0f);
 
                 g.setColour (kNoiseRed.withAlpha (0.35f));
-                g.setFont (juce::Font (juce::FontOptions{}.withHeight (11.0f).withStyle ("Bold")));
+                g.setFont (lnf.interMediumFont (11.0f));
                 g.drawText ("Sample Controls", selX, placY, selW, placH / 2,
                             juce::Justification::centredBottom, false);
                 g.setColour (juce::Colour (0xff555566));
-                g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.0f)));
+                g.setFont (lnf.interRegularFont (9.0f));
                 g.drawText ("(Coming Soon)", selX, placY + placH / 2, selW, placH / 2,
                             juce::Justification::centredTop, false);
             }
@@ -961,7 +996,7 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
 
         // Centred placeholder label
         g.setColour (kTransientOrng.withAlpha (0.35f));
-        g.setFont (juce::Font (juce::FontOptions{}.withHeight (13.0f).withStyle ("Bold")));
+        g.setFont (lnf.interMediumFont (13.0f));
         g.drawText ("Drag & Drop Sample Here",
                     (int) plotL, (int) plotT, (int) (plotR - plotL), (int) (plotB - plotT),
                     juce::Justification::centred, false);
@@ -971,7 +1006,7 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
     if (activeTab == Tab::Room)
     {
         g.setColour (kRoomPurple.withAlpha (0.40f));
-        g.setFont (juce::Font (juce::FontOptions{}.withHeight (15.0f).withStyle ("Bold")));
+        g.setFont (lnf.interMediumFont (15.0f));
         g.drawText ("Room Module (Coming Soon)",
                     area, juce::Justification::centred, false);
     }
@@ -981,14 +1016,14 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
         constexpr int knobSize = 180;
         const int labelY = area.getCentreY() - knobSize / 2 - 16 + knobSize + 8;
         g.setColour (juce::Colours::white);
-        g.setFont (juce::Font (juce::FontOptions{}.withHeight (12.0f).withStyle ("Bold")));
+        g.setFont (lnf.interMediumFont (12.0f));
         g.drawText ("SECRET SAUCE",
                     area.getX(), labelY, area.getWidth(), 18,
                     juce::Justification::centred, false);
     }
 
     g.setColour (kTextDim);
-    g.setFont (juce::Font (juce::FontOptions{}.withHeight (9.0f)));
+    g.setFont (lnf.interRegularFont (9.0f));
     g.drawText ("SNARE MAKER",
                 area.getX(), area.getBottom() - 18,
                 area.getWidth(), 14, juce::Justification::centred, false);

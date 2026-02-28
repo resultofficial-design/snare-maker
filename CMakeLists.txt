@@ -26,6 +26,12 @@ juce_add_plugin(SnareMaker
 # Required so that #include <JuceHeader.h> resolves in our source files.
 juce_generate_juce_header(SnareMaker)
 
+# ── Embedded font resources ───────────────────────────────────────────────────
+juce_add_binary_data(SnareMakerFonts SOURCES
+    Resources/Inter-Regular.ttf
+    Resources/Inter-Medium.ttf
+)
+
 # ── Sources ───────────────────────────────────────────────────────────────────
 target_sources(SnareMaker PRIVATE
     Source/PluginProcessor.cpp
@@ -45,6 +51,7 @@ target_compile_definitions(SnareMaker PUBLIC
 target_link_libraries(SnareMaker
     PRIVATE
         juce::juce_audio_utils
+        SnareMakerFonts
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

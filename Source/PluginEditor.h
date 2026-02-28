@@ -38,6 +38,14 @@ private:
     {
         SnareLookAndFeel();
 
+        juce::Typeface::Ptr getTypefaceForFont (const juce::Font& font) override;
+
+        juce::Font getLabelFont     (juce::Label&) override;
+        juce::Font getTextButtonFont(juce::TextButton&, int buttonHeight) override;
+        juce::Font getComboBoxFont  (juce::ComboBox&) override;
+        juce::Font getPopupMenuFont () override;
+        juce::Font getSliderPopupFont (juce::Slider&) override;
+
         void drawLinearSlider (juce::Graphics&,
                                int x, int y, int width, int height,
                                float sliderPos,
@@ -50,6 +58,13 @@ private:
                                float sliderPosProportional,
                                float rotaryStartAngle, float rotaryEndAngle,
                                juce::Slider&) override;
+
+        // Helpers for paint functions
+        juce::Font interRegularFont (float height) const;
+        juce::Font interMediumFont  (float height) const;
+
+        juce::Typeface::Ptr interRegular;
+        juce::Typeface::Ptr interMedium;
     };
 
     // ── Top-level tabs ──────────────────────────────────────────────────────
