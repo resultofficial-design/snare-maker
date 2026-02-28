@@ -127,12 +127,19 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     addAndMakeVisible (presetCombo);
 
     // ── Envelope mode buttons ─────────────────────────────────────────────────
+    auto initModeBtn = [&] (juce::TextButton& btn)
+    {
+        btn.setColour (juce::TextButton::buttonColourId,   juce::Colour (0xff1E2229));
+        btn.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xff1E2229));
+        btn.setColour (juce::ComboBox::outlineColourId,    juce::Colours::transparentBlack);
+        addAndMakeVisible (btn);
+    };
     bodyPitchBtn.onClick = [this] { setEnvMode (EnvMode::Pitch); };
     bodyAmpBtn  .onClick = [this] { setEnvMode (EnvMode::BodyAmp); };
     noiseAmpBtn .onClick = [this] { setEnvMode (EnvMode::NoiseAmp); };
-    addAndMakeVisible (bodyPitchBtn);
-    addAndMakeVisible (bodyAmpBtn);
-    addAndMakeVisible (noiseAmpBtn);
+    initModeBtn (bodyPitchBtn);
+    initModeBtn (bodyAmpBtn);
+    initModeBtn (noiseAmpBtn);
 
     // Size first so resized() computes all bounds before visibility/styling
     setSize (kWinW, kWinH);
@@ -195,12 +202,14 @@ void SnareMakerAudioProcessorEditor::setEnvMode (EnvMode mode)
 {
     envMode = mode;
 
-    auto styleBtn = [&] (juce::TextButton& btn, bool active, juce::Colour accent)
+    auto styleBtn = [&] (juce::TextButton& btn, bool active, juce::Colour /*accent*/)
     {
-        btn.setColour (juce::TextButton::buttonColourId,
-                       active ? accent : kBgPanel);
+        btn.setColour (juce::TextButton::buttonColourId,   juce::Colour (0xff1E2229));
+        btn.setColour (juce::TextButton::buttonOnColourId, juce::Colour (0xff1E2229));
         btn.setColour (juce::TextButton::textColourOffId,
-                       active ? juce::Colours::white : juce::Colour (0xff8888aa));
+                       active ? juce::Colours::white : juce::Colour (0xff555566));
+        btn.setColour (juce::TextButton::textColourOnId,
+                       active ? juce::Colours::white : juce::Colour (0xff555566));
     };
 
     styleBtn (bodyPitchBtn, mode == EnvMode::Pitch,    kPitchBlue);
@@ -241,9 +250,8 @@ void SnareMakerAudioProcessorEditor::resized()
 
     // ── Layout: [BODY][NOISE] tabs → EnvelopeEditor → [PITCH][AMP] buttons ──
     {
-        constexpr int btnW = 70, btnH = 22, btnGap = 8;
+        constexpr int btnH = 32, btnGap = 4;
         constexpr int envPadX = 20, envPadTop = 6, envPadBot = 6;
-        const int cx = drumAreaBounds.getCentreX();
 
         // Tabs directly above envelope editor – two groups
         const int tabY = mainTop + envPadTop;
@@ -267,12 +275,15 @@ void SnareMakerAudioProcessorEditor::resized()
                                 drumAreaBounds.getWidth() - envPadX * 2, envH };
         envelopeEditor.setBounds (envEditorFullBounds);
 
-        // BODY tab: two buttons side by side
-        bodyPitchBtn.setBounds (cx - btnW - btnGap / 2, modeBtnY, btnW, btnH);
-        bodyAmpBtn  .setBounds (cx + btnGap / 2,        modeBtnY, btnW, btnH);
+        // BODY tab: two buttons spanning full envelope width
+        const int envL = envEditorFullBounds.getX();
+        const int envW = envEditorFullBounds.getWidth();
+        const int halfW = (envW - btnGap) / 2;
+        bodyPitchBtn.setBounds (envL,                    modeBtnY, halfW, btnH);
+        bodyAmpBtn  .setBounds (envL + halfW + btnGap,   modeBtnY, envW - halfW - btnGap, btnH);
 
-        // NOISE tab: single centred button
-        noiseAmpBtn .setBounds (cx - btnW / 2,          modeBtnY, btnW, btnH);
+        // NOISE tab: single button spanning full envelope width
+        noiseAmpBtn .setBounds (envL,                    modeBtnY, envW, btnH);
     }
 
 }
