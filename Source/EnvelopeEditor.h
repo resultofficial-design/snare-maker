@@ -26,6 +26,9 @@ class EnvelopeEditor : public juce::Component,
                        private juce::Timer
 {
 public:
+    // Waveform layer identifiers
+    enum class WaveLayer { Transient, Body, Resonant, Noise, COUNT };
+
     EnvelopeEditor();
     ~EnvelopeEditor() override;
 
@@ -38,6 +41,9 @@ public:
     // Switch which envelope the editor displays and edits.
     // The waveform preview always uses the pitch envelope set in connectToParameters.
     void setEnvelope (FlexibleEnvelope& env);
+
+    // Set which waveform layer is highlighted (full alpha); others are dimmed.
+    void setActiveLayer (WaveLayer layer);
 
     void paint     (juce::Graphics&) override;
     void resized   () override;
@@ -82,10 +88,22 @@ private:
     std::atomic<float>*         pNoiseDecay      = nullptr;
     std::atomic<float>*         pPhaseOffset     = nullptr;
 
-    // ── Preview waveform ─────────────────────────────────────────────────────
+    // ── Preview waveform (multi-layer) ──────────────────────────────────────
     static constexpr int kWaveformSamples = 2048;
+    static constexpr int kNumLayers       = static_cast<int> (WaveLayer::COUNT);
 
-    std::vector<float> waveformBuffer;
+    std::vector<float> layerBuffers[kNumLayers];
+    juce::Path         layerPaths  [kNumLayers];
+    WaveLayer          activeLayer { WaveLayer::Body };
+
+    // Per-layer colours
+    static constexpr juce::uint32 kLayerColours[kNumLayers] {
+        0xff7ec8e3,   // Transient – light blue
+        0xff8A8F98,   // Body      – grey
+        0xffe8a838,   // Resonant  – orange
+        0xffe94560    // Noise     – red
+    };
+
     float              waveformDuration = 0.5f;   // seconds, derived from params
 
     // Change detection: last values that produced the current waveform

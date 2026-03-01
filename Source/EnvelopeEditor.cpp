@@ -7,7 +7,8 @@
 EnvelopeEditor::EnvelopeEditor()
 {
     setOpaque (false);
-    waveformBuffer.reserve (kWaveformSamples);
+    for (int i = 0; i < kNumLayers; ++i)
+        layerBuffers[i].reserve (kWaveformSamples);
     addAndMakeVisible (modeToggle);
 }
 
@@ -52,6 +53,19 @@ void EnvelopeEditor::setEnvelope (FlexibleEnvelope& env)
     lastPointsHash = 0;   // force waveform regeneration
     regenerateWaveform();
     repaint();
+}
+
+// =============================================================================
+// setActiveLayer  –  highlight one waveform layer, dim the rest
+// =============================================================================
+
+void EnvelopeEditor::setActiveLayer (WaveLayer layer)
+{
+    if (activeLayer != layer)
+    {
+        activeLayer = layer;
+        repaint();
+    }
 }
 
 // =============================================================================
@@ -288,13 +302,19 @@ void EnvelopeEditor::regenerateWaveform()
     const double noiseTauSec  = std::max (0.001, (double) noiseDecayMs * 0.001);
     const double freqRatio    = std::pow (2.0, (double) pitchAmount / 12.0);
 
+    // Transient: very fast impulse decay
+    const double transTauSec  = envDurSec * 0.05;
+    // Resonant: medium decay, sits between body and noise
+    const double resTauSec    = bodyTauSec * 0.5;
+
     // Duration: longest of body or noise decay x 5, clamped
     const double longestTau = std::max (bodyTauSec, noiseTauSec);
     waveformDuration = (float) juce::jlimit (0.05, 1.0, longestTau * 5.0);
 
     const double dt = (double) waveformDuration / (double) kWaveformSamples;
 
-    waveformBuffer.resize (kWaveformSamples);
+    for (int i = 0; i < kNumLayers; ++i)
+        layerBuffers[i].resize (kWaveformSamples);
 
     // Deterministic pseudo-random noise: integer hash -> float in [-1, +1].
     auto detNoise = [] (int idx) -> float
@@ -313,7 +333,7 @@ void EnvelopeEditor::regenerateWaveform()
     {
         const double t = (double) i * dt;
 
-        // Body: pitch envelope (always from pitchEnvelope) + sine + amplitude decay
+        // Pitch envelope (always from pitchEnvelope) for frequency modulation
         const double tNorm   = (envDurSec > 0.0) ? t / envDurSec : 1.0;
         const double pitchEnv = (pitchEnvelopeForPreview != nullptr)
                                 ? pitchEnvelopeForPreview->evaluate (tNorm)
@@ -322,14 +342,82 @@ void EnvelopeEditor::regenerateWaveform()
         const double currentFreq = (double) bodyFreq * (1.0 + (freqRatio - 1.0) * pitchEnv);
         phase += currentFreq * dt;
 
+        const double sinVal = std::sin (juce::MathConstants<double>::twoPi * phase);
+
+        // ── Transient: sine at initial frequency × very fast decay ──────────
+        const double transAmp = std::exp (-t / transTauSec);
+        layerBuffers[static_cast<int> (WaveLayer::Transient)][(size_t) i]
+            = (float) (sinVal * transAmp);
+
+        // ── Body: sine with pitch envelope × body decay ─────────────────────
         const double bodyAmp = std::exp (-t / bodyTauSec);
-        const double bodySample = std::sin (juce::MathConstants<double>::twoPi * phase) * bodyAmp;
+        layerBuffers[static_cast<int> (WaveLayer::Body)][(size_t) i]
+            = (float) (sinVal * bodyAmp);
 
-        // Noise: deterministic white noise with exponential decay
+        // ── Resonant: sine at body frequency × medium decay ─────────────────
+        const double resAmp = std::exp (-t / resTauSec);
+        layerBuffers[static_cast<int> (WaveLayer::Resonant)][(size_t) i]
+            = (float) (sinVal * resAmp);
+
+        // ── Noise: deterministic white noise × exponential decay ────────────
         const double noiseAmp = (double) noiseLevel * std::exp (-t / noiseTauSec);
-        const double noiseSample = (double) detNoise (i) * noiseAmp;
+        layerBuffers[static_cast<int> (WaveLayer::Noise)][(size_t) i]
+            = (float) ((double) detNoise (i) * noiseAmp);
+    }
 
-        waveformBuffer[(size_t) i] = (float) (bodySample + noiseSample);
+    // ── Build closed juce::Path per layer for filled rendering ──────────────
+    const float plotL  = kPadX;
+    const float plotR  = (float) getWidth() - kPadX;
+    const float plotT  = kPadTop;
+    const float plotB  = (float) getHeight() - kPadBottom;
+    const float plotW  = plotR - plotL;
+    const float plotCY = (plotT + plotB) * 0.5f;
+    const float halfH  = (plotB - plotT) * 0.40f;
+    const int   cols   = std::max (1, (int) plotW);
+
+    for (int layer = 0; layer < kNumLayers; ++layer)
+    {
+        layerPaths[layer].clear();
+
+        if (cols < 2 || plotW < 1.0f)
+            continue;
+
+        const auto& buf = layerBuffers[layer];
+        const int n     = (int) buf.size();
+        if (n < 2) continue;
+
+        // Build top edge (max values) left to right
+        std::vector<float> topY (cols), botY (cols);
+
+        for (int c = 0; c < cols; ++c)
+        {
+            const int s0 = c * n / cols;
+            const int s1 = std::min (n - 1, (c + 1) * n / cols);
+
+            float lo = buf[(size_t) s0];
+            float hi = lo;
+
+            for (int s = s0 + 1; s <= s1; ++s)
+            {
+                const float v = buf[(size_t) s];
+                if (v < lo) lo = v;
+                if (v > hi) hi = v;
+            }
+
+            topY[(size_t) c] = plotCY - hi * halfH;
+            botY[(size_t) c] = plotCY - lo * halfH;
+        }
+
+        // Top edge L→R
+        layerPaths[layer].startNewSubPath (plotL, topY[0]);
+        for (int c = 1; c < cols; ++c)
+            layerPaths[layer].lineTo (plotL + (float) c, topY[(size_t) c]);
+
+        // Bottom edge R→L
+        for (int c = cols - 1; c >= 0; --c)
+            layerPaths[layer].lineTo (plotL + (float) c, botY[(size_t) c]);
+
+        layerPaths[layer].closeSubPath();
     }
 }
 
@@ -338,40 +426,27 @@ void EnvelopeEditor::regenerateWaveform()
 // =============================================================================
 
 void EnvelopeEditor::paintWaveform (juce::Graphics& g,
-                                     float plotL, float plotR,
-                                     float plotT, float plotB) const
+                                     float /*plotL*/, float /*plotR*/,
+                                     float /*plotT*/, float /*plotB*/) const
 {
-    const int n = (int) waveformBuffer.size();
-    if (n < 2)
-        return;
+    const int activeIdx = static_cast<int> (activeLayer);
 
-    const float plotW  = plotR - plotL;
-    const float plotCY = (plotT + plotB) * 0.5f;
-    const float halfH  = (plotB - plotT) * 0.40f;
-    const int   cols   = std::max (1, (int) plotW);
-
-    g.setColour (juce::Colour (kAccentColour).withAlpha (0.07f));
-
-    for (int c = 0; c < cols; ++c)
+    // Draw inactive layers first (dimmed), then active layer on top (brighter)
+    for (int pass = 0; pass < 2; ++pass)
     {
-        const int s0 = c * n / cols;
-        const int s1 = std::min (n - 1, (c + 1) * n / cols);
-
-        float lo = waveformBuffer[(size_t) s0];
-        float hi = lo;
-
-        for (int s = s0 + 1; s <= s1; ++s)
+        for (int i = 0; i < kNumLayers; ++i)
         {
-            const float v = waveformBuffer[(size_t) s];
-            if (v < lo) lo = v;
-            if (v > hi) hi = v;
+            const bool isActive = (i == activeIdx);
+            if ((pass == 0) == isActive)
+                continue;   // pass 0 = inactive only, pass 1 = active only
+
+            if (layerPaths[i].isEmpty())
+                continue;
+
+            const float alpha = isActive ? 0.18f : 0.05f;
+            g.setColour (juce::Colour (kLayerColours[i]).withAlpha (alpha));
+            g.fillPath (layerPaths[i]);
         }
-
-        const float yTop = plotCY - hi * halfH;
-        const float yBot = plotCY - lo * halfH;
-
-        if (yBot - yTop > 0.5f)
-            g.fillRect (plotL + (float) c, yTop, 1.0f, yBot - yTop);
     }
 }
 

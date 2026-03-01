@@ -278,15 +278,22 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
 {
     activeTab = tab;
 
-    const bool showBody     = (tab == Tab::Body);
-    const bool showNoise    = (tab == Tab::Noise);
-    const bool showResonant = (tab == Tab::Resonant);
+    const bool showTransient = (tab == Tab::Transient);
+    const bool showBody      = (tab == Tab::Body);
+    const bool showNoise     = (tab == Tab::Noise);
+    const bool showResonant  = (tab == Tab::Resonant);
 
     // Envelope mode buttons
     noiseAmpBtn .setVisible (false);
 
-    // Envelope editor visible for Body, Noise, and Resonant
-    envelopeEditor.setVisible (showBody || showNoise || showResonant);
+    // Envelope editor visible for Transient, Body, Noise, and Resonant
+    envelopeEditor.setVisible (showTransient || showBody || showNoise || showResonant);
+
+    // Map tab → waveform layer highlight
+    if      (showTransient) envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Transient);
+    else if (showBody)      envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Body);
+    else if (showResonant)  envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Resonant);
+    else if (showNoise)     envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Noise);
 
     // Resonant / Noise tab: envelope at 80% of full width (side panel fills the rest)
     if (showResonant || showNoise)
@@ -317,7 +324,8 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     }
 
     // Default envelope for each tab
-    if (showBody)          setEnvMode (EnvMode::Pitch);
+    if (showTransient)     setEnvMode (EnvMode::BodyAmp);
+    else if (showBody)     setEnvMode (EnvMode::Pitch);
     else if (showNoise)    setEnvMode (EnvMode::NoiseAmp);
     else if (showResonant) setEnvMode (EnvMode::ResonantAmp);
     // Room and Sauce: no envelope / no mode buttons (placeholder only)
