@@ -8,6 +8,7 @@ EnvelopeEditor::EnvelopeEditor()
 {
     setOpaque (false);
     waveformBuffer.reserve (kWaveformSamples);
+    addAndMakeVisible (modeToggle);
 }
 
 EnvelopeEditor::~EnvelopeEditor()
@@ -133,7 +134,12 @@ void EnvelopeEditor::timerCallback()
 
 void EnvelopeEditor::resized()
 {
-    // Layout is computed from bounds in paint() / toPixel()
+    constexpr int kUISpacing = 16;
+    constexpr int toggleW = 110;
+    constexpr int toggleH = 22;
+    const int x = getWidth() - kUISpacing - toggleW;
+    const int y = kUISpacing;
+    modeToggle.setBounds (x, y, toggleW, toggleH);
 }
 
 // =============================================================================

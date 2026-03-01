@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include "FlexibleEnvelope.h"
+#include "EnvelopeModeToggle.h"
 #include <cstring>
 
 // =============================================================================
@@ -48,7 +49,10 @@ public:
     void mouseExit        (const juce::MouseEvent&) override;
     void mouseDoubleClick (const juce::MouseEvent&) override;
 
+    EnvelopeModeToggle::DisplayMode getDisplayMode() const { return modeToggle.getMode(); }
+
 private:
+    EnvelopeModeToggle modeToggle;
     // Timer: polls parameters to keep display in sync with sliders / automation
     void timerCallback() override;
 
