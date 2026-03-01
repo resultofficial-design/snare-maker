@@ -33,10 +33,12 @@ public:
     ~EnvelopeEditor() override;
 
     // Call once after construction to bind to the processor's
-    // FlexibleEnvelope (shared, not copied), SpinLock, and waveform preview params.
+    // FlexibleEnvelope (shared, not copied), SpinLock, waveform preview params,
+    // and global display mode.
     void connectToParameters (juce::AudioProcessorValueTreeState& apvts,
                               FlexibleEnvelope& pitchEnv,
-                              juce::SpinLock& envLock);
+                              juce::SpinLock& envLock,
+                              std::atomic<int>& displayMode);
 
     // Switch which envelope the editor displays and edits.
     // The waveform preview always uses the pitch envelope set in connectToParameters.
@@ -93,15 +95,19 @@ private:
     static constexpr int kNumLayers       = static_cast<int> (WaveLayer::COUNT);
 
     std::vector<float> layerBuffers[kNumLayers];
-    juce::Path         layerPaths  [kNumLayers];
+    juce::Path         layerPaths      [kNumLayers];   // TRUE paths (full detail)
+    juce::Path         simplePaths     [kNumLayers];   // SIMPLE paths (smoothed RMS)
     WaveLayer          activeLayer { WaveLayer::Body };
 
-    // Per-layer colours
+    // Pointer to global display mode (owned by processor, 0=Simple, 1=True)
+    std::atomic<int>*  globalDisplayMode = nullptr;
+
+    // Per-layer colours (must match tab accent colours in PluginEditor.cpp)
     static constexpr juce::uint32 kLayerColours[kNumLayers] {
-        0xff7ec8e3,   // Transient – light blue
-        0xff8A8F98,   // Body      – grey
-        0xffe8a838,   // Resonant  – orange
-        0xffe94560    // Noise     – red
+        0xffffaa33,   // Transient – matches kTransientOrng
+        0xff4a9eff,   // Body      – matches kPitchBlue
+        0xff55dd77,   // Resonant  – matches kResonantGrn
+        0xffe94560    // Noise     – matches kNoiseRed
     };
 
     float              waveformDuration = 0.5f;   // seconds, derived from params

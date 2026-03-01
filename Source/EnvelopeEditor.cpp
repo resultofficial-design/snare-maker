@@ -23,11 +23,13 @@ EnvelopeEditor::~EnvelopeEditor()
 
 void EnvelopeEditor::connectToParameters (juce::AudioProcessorValueTreeState& apvts,
                                            FlexibleEnvelope& env,
-                                           juce::SpinLock& envLock)
+                                           juce::SpinLock& envLock,
+                                           std::atomic<int>& displayMode)
 {
     envelope                = &env;
     pitchEnvelopeForPreview = &env;
     envelopeLock            = &envLock;
+    globalDisplayMode       = &displayMode;
 
     // Waveform preview params (read-only)
     pBodyFreq      = apvts.getRawParameterValue ("bodyFreq");
@@ -36,6 +38,18 @@ void EnvelopeEditor::connectToParameters (juce::AudioProcessorValueTreeState& ap
     pNoiseLevel    = apvts.getRawParameterValue ("noiseLevel");
     pNoiseDecay    = apvts.getRawParameterValue ("noiseDecay");
     pPhaseOffset   = apvts.getRawParameterValue ("phaseOffset");
+
+    // Wire SIMPLE/TRUE toggle to global display mode
+    modeToggle.setMode (displayMode.load() == 0
+                        ? EnvelopeModeToggle::DisplayMode::Simple
+                        : EnvelopeModeToggle::DisplayMode::True);
+
+    modeToggle.onChange = [this] (EnvelopeModeToggle::DisplayMode m)
+    {
+        if (globalDisplayMode != nullptr)
+            globalDisplayMode->store (m == EnvelopeModeToggle::DisplayMode::True ? 1 : 0);
+        repaint();
+    };
 
     regenerateWaveform();
     startTimerHz (30);
@@ -134,6 +148,19 @@ void EnvelopeEditor::timerCallback()
             currentHash != lastPointsHash)
         {
             regenerateWaveform();
+            needsRepaint = true;
+        }
+    }
+
+    // ── Sync SIMPLE/TRUE toggle from global state ──────────────────────────
+    if (globalDisplayMode != nullptr)
+    {
+        const auto expected = (globalDisplayMode->load() == 0)
+                              ? EnvelopeModeToggle::DisplayMode::Simple
+                              : EnvelopeModeToggle::DisplayMode::True;
+        if (modeToggle.getMode() != expected)
+        {
+            modeToggle.setMode (expected);
             needsRepaint = true;
         }
     }
@@ -419,6 +446,57 @@ void EnvelopeEditor::regenerateWaveform()
 
         layerPaths[layer].closeSubPath();
     }
+
+    // ── Build SIMPLE paths (downsampled waveform line, not filled) ─────────
+    // Take every Nth sample, apply light smoothing, build a line path that
+    // preserves oscillation cycles without micro-detail.
+    constexpr int kSimplePoints = 256;   // enough points for clear oscillations
+
+    for (int layer = 0; layer < kNumLayers; ++layer)
+    {
+        simplePaths[layer].clear();
+
+        if (plotW < 1.0f)
+            continue;
+
+        const auto& buf = layerBuffers[layer];
+        const int n     = (int) buf.size();
+        if (n < 2) continue;
+
+        const int numPts = std::min (kSimplePoints, n);
+
+        // Downsample: pick evenly spaced samples
+        std::vector<float> samples (numPts);
+        for (int i = 0; i < numPts; ++i)
+        {
+            const int srcIdx = i * (n - 1) / (numPts - 1);
+            samples[(size_t) i] = buf[(size_t) srcIdx];
+        }
+
+        // Two passes of 3-tap moving average for gentle smoothing
+        auto smooth3 = [] (std::vector<float>& arr)
+        {
+            const int sz = (int) arr.size();
+            if (sz < 3) return;
+            float prev = arr[0];
+            for (int i = 1; i < sz - 1; ++i)
+            {
+                const float cur = arr[(size_t) i];
+                arr[(size_t) i] = (prev + cur + arr[(size_t) (i + 1)]) / 3.0f;
+                prev = cur;
+            }
+        };
+
+        smooth3 (samples);
+        smooth3 (samples);
+
+        // Build open line path (not closed / not filled)
+        const float step = plotW / (float) (numPts - 1);
+        simplePaths[layer].startNewSubPath (plotL, plotCY - samples[0] * halfH);
+        for (int i = 1; i < numPts; ++i)
+            simplePaths[layer].lineTo (plotL + (float) i * step,
+                                       plotCY - samples[(size_t) i] * halfH);
+    }
 }
 
 // =============================================================================
@@ -430,6 +508,7 @@ void EnvelopeEditor::paintWaveform (juce::Graphics& g,
                                      float /*plotT*/, float /*plotB*/) const
 {
     const int activeIdx = static_cast<int> (activeLayer);
+    const bool isSimple = (globalDisplayMode != nullptr && globalDisplayMode->load() == 0);
 
     // Draw inactive layers first (dimmed), then active layer on top (brighter)
     for (int pass = 0; pass < 2; ++pass)
@@ -440,12 +519,24 @@ void EnvelopeEditor::paintWaveform (juce::Graphics& g,
             if ((pass == 0) == isActive)
                 continue;   // pass 0 = inactive only, pass 1 = active only
 
-            if (layerPaths[i].isEmpty())
-                continue;
-
-            const float alpha = isActive ? 0.18f : 0.05f;
+            const float alpha = isActive ? 1.0f : 0.45f;
             g.setColour (juce::Colour (kLayerColours[i]).withAlpha (alpha));
-            g.fillPath (layerPaths[i]);
+
+            if (isSimple)
+            {
+                // SIMPLE: stroke the downsampled line path (oscillating waveform)
+                if (! simplePaths[i].isEmpty())
+                    g.strokePath (simplePaths[i],
+                                  juce::PathStrokeType (1.5f,
+                                      juce::PathStrokeType::curved,
+                                      juce::PathStrokeType::rounded));
+            }
+            else
+            {
+                // TRUE: fill the min/max closed path (full detail)
+                if (! layerPaths[i].isEmpty())
+                    g.fillPath (layerPaths[i]);
+            }
         }
     }
 }

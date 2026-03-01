@@ -44,6 +44,10 @@ public:
     FlexibleEnvelope resonantAmpEnvelope;
     juce::SpinLock   envelopeLock;
 
+    // Global waveform display mode (0 = Simple, 1 = True).
+    // Shared across all EnvelopeEditor instances.
+    std::atomic<int> waveformDisplayMode { 1 };   // default = True
+
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 

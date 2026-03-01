@@ -205,7 +205,8 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
 
     // ── Envelope editor (overlays drum centre area) ─────────────────────────
     envelopeEditor.connectToParameters (audioProcessor.apvts, audioProcessor.pitchEnvelope,
-                                        audioProcessor.envelopeLock);
+                                        audioProcessor.envelopeLock,
+                                        audioProcessor.waveformDisplayMode);
     addAndMakeVisible (envelopeEditor);
 
     // ── Noise filter visualizer (hidden until Noise/GEN) ──────────────────
