@@ -52,6 +52,9 @@ public:
     // Resamples to kWaveformSamples and rebuilds paths.
     void setLayerSampleData (WaveLayer layer, const float* data, int numSamples);
 
+    // Clear the sample flag for a layer so regenerateWaveform() produces synth output again.
+    void clearLayerSampleFlag (WaveLayer layer);
+
     void paint     (juce::Graphics&) override;
     void resized   () override;
 
@@ -112,6 +115,7 @@ private:
     std::vector<float> layerBuffers[kNumLayers];
     juce::Path         layerPaths      [kNumLayers];   // TRUE paths (full detail)
     juce::Path         simplePaths     [kNumLayers];   // SIMPLE paths (smoothed RMS)
+    bool               layerUsesSample [kNumLayers] {};  // true = loaded sample, skip synth regen
     WaveLayer          activeLayer { WaveLayer::Body };
 
     // Pointer to global display mode (owned by processor, 0=Simple, 1=True)

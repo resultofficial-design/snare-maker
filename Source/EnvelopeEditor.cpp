@@ -92,6 +92,8 @@ void EnvelopeEditor::setLayerSampleData (WaveLayer layer, const float* data, int
     if (idx < 0 || idx >= kNumLayers || data == nullptr || numSamples < 1)
         return;
 
+    layerUsesSample[idx] = true;
+
     // Resample to kWaveformSamples via linear interpolation
     layerBuffers[idx].resize (kWaveformSamples);
 
@@ -181,6 +183,17 @@ void EnvelopeEditor::setLayerSampleData (WaveLayer layer, const float* data, int
     }
 
     repaint();
+}
+
+// =============================================================================
+// clearLayerSampleFlag  –  revert a layer to synth-generated waveform
+// =============================================================================
+
+void EnvelopeEditor::clearLayerSampleFlag (WaveLayer layer)
+{
+    const int idx = static_cast<int> (layer);
+    if (idx >= 0 && idx < kNumLayers)
+        layerUsesSample[idx] = false;
 }
 
 // =============================================================================
@@ -442,7 +455,8 @@ void EnvelopeEditor::regenerateWaveform()
     const double dt = (double) waveformDuration / (double) kWaveformSamples;
 
     for (int i = 0; i < kNumLayers; ++i)
-        layerBuffers[i].resize (kWaveformSamples);
+        if (! layerUsesSample[i])
+            layerBuffers[i].resize (kWaveformSamples);
 
     // Deterministic pseudo-random noise: integer hash -> float in [-1, +1].
     auto detNoise = [] (int idx) -> float
@@ -473,24 +487,36 @@ void EnvelopeEditor::regenerateWaveform()
         const double sinVal = std::sin (juce::MathConstants<double>::twoPi * phase);
 
         // ── Transient: sine at initial frequency × very fast decay ──────────
-        const double transAmp = std::exp (-t / transTauSec);
-        layerBuffers[static_cast<int> (WaveLayer::Transient)][(size_t) i]
-            = (float) (sinVal * transAmp);
+        if (! layerUsesSample[static_cast<int> (WaveLayer::Transient)])
+        {
+            const double transAmp = std::exp (-t / transTauSec);
+            layerBuffers[static_cast<int> (WaveLayer::Transient)][(size_t) i]
+                = (float) (sinVal * transAmp);
+        }
 
         // ── Body: sine with pitch envelope × body decay ─────────────────────
-        const double bodyAmp = std::exp (-t / bodyTauSec);
-        layerBuffers[static_cast<int> (WaveLayer::Body)][(size_t) i]
-            = (float) (sinVal * bodyAmp);
+        if (! layerUsesSample[static_cast<int> (WaveLayer::Body)])
+        {
+            const double bodyAmp = std::exp (-t / bodyTauSec);
+            layerBuffers[static_cast<int> (WaveLayer::Body)][(size_t) i]
+                = (float) (sinVal * bodyAmp);
+        }
 
         // ── Resonant: sine at body frequency × medium decay ─────────────────
-        const double resAmp = std::exp (-t / resTauSec);
-        layerBuffers[static_cast<int> (WaveLayer::Resonant)][(size_t) i]
-            = (float) (sinVal * resAmp);
+        if (! layerUsesSample[static_cast<int> (WaveLayer::Resonant)])
+        {
+            const double resAmp = std::exp (-t / resTauSec);
+            layerBuffers[static_cast<int> (WaveLayer::Resonant)][(size_t) i]
+                = (float) (sinVal * resAmp);
+        }
 
         // ── Noise: deterministic white noise × exponential decay ────────────
-        const double noiseAmp = (double) noiseLevel * std::exp (-t / noiseTauSec);
-        layerBuffers[static_cast<int> (WaveLayer::Noise)][(size_t) i]
-            = (float) ((double) detNoise (i) * noiseAmp);
+        if (! layerUsesSample[static_cast<int> (WaveLayer::Noise)])
+        {
+            const double noiseAmp = (double) noiseLevel * std::exp (-t / noiseTauSec);
+            layerBuffers[static_cast<int> (WaveLayer::Noise)][(size_t) i]
+                = (float) ((double) detNoise (i) * noiseAmp);
+        }
     }
 
     // ── Build closed juce::Path per layer for filled rendering ──────────────
@@ -505,6 +531,10 @@ void EnvelopeEditor::regenerateWaveform()
 
     for (int layer = 0; layer < kNumLayers; ++layer)
     {
+        // Skip layers that use a loaded sample — paths already built by setLayerSampleData
+        if (layerUsesSample[layer])
+            continue;
+
         layerPaths[layer].clear();
 
         if (cols < 2 || plotW < 1.0f)
@@ -555,6 +585,10 @@ void EnvelopeEditor::regenerateWaveform()
 
     for (int layer = 0; layer < kNumLayers; ++layer)
     {
+        // Skip layers that use a loaded sample — paths already built by setLayerSampleData
+        if (layerUsesSample[layer])
+            continue;
+
         simplePaths[layer].clear();
 
         if (plotW < 1.0f)

@@ -507,6 +507,21 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     else if (showNoise)     envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Noise);
     else if (showRoom)      envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Body);
 
+    // Body and Room share WaveLayer::Body — manage sample flag on tab switch
+    if (showBody)
+    {
+        // Clear any Room sample from the Body layer so synth waveform regenerates
+        envelopeEditor.clearLayerSampleFlag (EnvelopeEditor::WaveLayer::Body);
+    }
+    else if (showRoom && audioProcessor.roomIRBuffer.getNumSamples() > 0)
+    {
+        // Re-apply room IR sample to the Body layer
+        envelopeEditor.setLayerSampleData (
+            EnvelopeEditor::WaveLayer::Body,
+            audioProcessor.roomIRBuffer.getReadPointer (0),
+            audioProcessor.roomIRBuffer.getNumSamples());
+    }
+
     // Transient / Resonant / Noise / Room: 80% width (side panel fills the rest)
     if (showTransient)
     {
