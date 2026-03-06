@@ -189,17 +189,25 @@ private:
     // ── Sauce knob (visual only, no APVTS) ──────────────────────────────────
     juce::Slider sauceKnob;
 
-    // ── Output fader ─────────────────────────────────────────────────────────
-    juce::Slider outputSlider;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputAttachment;
-
-    // ── Output value bubble (visible during drag) ─────────────────────────
+    // ── Value popup bubble (shared struct for faders) ──────────────────────
     struct OutputValueBubble : public juce::Component
     {
         juce::String text;
         juce::Typeface::Ptr typeface;
         void paint (juce::Graphics&) override;
     };
+
+    // ── Phase offset fader (BODY tab only, inside envelope area) ─────────────
+    juce::Slider phaseOffsetSlider;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> phaseOffsetAttachment;
+    OutputValueBubble phaseBubble;
+    void updatePhaseBubble();
+
+    // ── Output fader ─────────────────────────────────────────────────────────
+    juce::Slider outputSlider;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputAttachment;
+
+    // ── Output value bubble (visible during drag) ─────────────────────────
     OutputValueBubble outputBubble;
     void updateOutputBubble();
 

@@ -232,6 +232,10 @@ void EnvelopeEditor::timerCallback()
         }
     }
 
+    // Repaint while playback position indicator is moving
+    if (playbackPos != nullptr && playbackPos->load (std::memory_order_relaxed) >= 0.0f)
+        needsRepaint = true;
+
     if (needsRepaint)
         repaint();
 }
@@ -452,9 +456,9 @@ void EnvelopeEditor::regenerateWaveform()
     // Resonant: medium decay, sits between body and noise
     const double resTauSec    = bodyTauSec * 0.5;
 
-    // Duration: longest of body or noise decay x 10, clamped (2× previous range)
+    // Duration: longest of body or noise decay x 15, clamped (3× original range)
     const double longestTau = std::max (bodyTauSec, noiseTauSec);
-    waveformDuration = (float) juce::jlimit (0.05, 2.0, longestTau * 10.0);
+    waveformDuration = (float) juce::jlimit (0.05, 3.0, longestTau * 15.0);
 
     const double dt = (double) waveformDuration / (double) kWaveformSamples;
 
@@ -1061,6 +1065,22 @@ void EnvelopeEditor::paint (juce::Graphics& g)
         g.setColour (accent.withAlpha (0.90f));
         g.fillEllipse (markerX - dotR, markerY - dotR,
                         dotR * 2.0f, dotR * 2.0f);
+    }
+
+    // ── 4c. Playback position indicator (vertical line, left→right) ────────
+    if (playbackPos != nullptr)
+    {
+        const float posSec = playbackPos->load (std::memory_order_relaxed);
+        if (posSec >= 0.0f && waveformDuration > 0.0f)
+        {
+            const float posNorm = posSec / waveformDuration;
+            if (posNorm <= 1.0f)
+            {
+                const float lineX = plotL + posNorm * (plotR - plotL);
+                g.setColour (juce::Colour (0x40ffffff));   // semi-transparent white
+                g.drawVerticalLine ((int) lineX, plotT, plotB);
+            }
+        }
     }
 
     // ── 5. Envelope curve ────────────────────────────────────────────────────

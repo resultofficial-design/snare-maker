@@ -285,6 +285,7 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
                                      audioProcessor.resonantAmpEnvelope,
                                      audioProcessor.noiseAmpEnvelope,
                                      audioProcessor.roomAmpEnvelope);
+    envelopeEditor.setPlaybackPosition (audioProcessor.playbackPositionSec);
     addAndMakeVisible (envelopeEditor);
 
     envelopeEditor.onSampleDropped = [this] (const juce::String& filePath)
@@ -434,6 +435,21 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     sauceKnob.setColour (juce::Slider::rotarySliderFillColourId, kSaucePink);
     addChildComponent (sauceKnob);   // hidden until Sauce tab
 
+    // ── Phase offset fader (BODY tab, inside envelope container left side) ──
+    phaseOffsetSlider.setSliderStyle (juce::Slider::LinearVertical);
+    phaseOffsetSlider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    phaseOffsetSlider.setColour (juce::Slider::trackColourId, juce::Colour (0xff5a5a6a));
+    addChildComponent (phaseOffsetSlider);   // hidden until Body tab
+    phaseOffsetAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        audioProcessor.apvts, "phaseOffset", phaseOffsetSlider);
+
+    // Phase offset value bubble
+    phaseBubble.typeface = lnf.interRegular;
+    addChildComponent (phaseBubble);
+    phaseOffsetSlider.onDragStart   = [this] { phaseBubble.setVisible (true);  updatePhaseBubble(); };
+    phaseOffsetSlider.onDragEnd     = [this] { phaseBubble.setVisible (false); };
+    phaseOffsetSlider.onValueChange = [this] { if (phaseBubble.isVisible()) updatePhaseBubble(); };
+
     // ── Output fader (attached to outputGain APVTS param) ────────────────────
     outputSlider.setSliderStyle (juce::Slider::LinearVertical);
     outputSlider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
@@ -507,6 +523,22 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
 
     // Envelope mode buttons
     noiseAmpBtn .setVisible (false);
+
+    // Phase offset fader: visible only on Body tab
+    phaseOffsetSlider.setVisible (showBody);
+    phaseBubble.setVisible (false);
+    if (showBody)
+    {
+        // Center fader in the 24px kPadX margin of the envelope editor
+        constexpr int kEnvPadX = 24;   // matches EnvelopeEditor::kPadX
+        constexpr int faderW   = 20;
+        constexpr int vInset   = 20;   // top + bottom inset
+        const int faderX = envEditorFullBounds.getX() + (kEnvPadX - faderW) / 2;
+        phaseOffsetSlider.setBounds (faderX,
+                                     envEditorFullBounds.getY() + vInset,
+                                     faderW,
+                                     envEditorFullBounds.getHeight() - vInset * 2);
+    }
 
     // Envelope editor visible for all layer tabs (waveform overlay)
     envelopeEditor.setVisible (showTransient || showBody || showNoise || showResonant || showRoom);
@@ -677,6 +709,19 @@ void SnareMakerAudioProcessorEditor::updateOutputBubble()
                             outputSlider.getY() + (int) thumbY - bubbleH / 2,
                             bubbleW, bubbleH);
     outputBubble.repaint();
+}
+
+void SnareMakerAudioProcessorEditor::updatePhaseBubble()
+{
+    const int val = (int) phaseOffsetSlider.getValue();
+    phaseBubble.text = juce::String (val) + juce::String::charToString (0x00B0);   // degree sign
+
+    const float thumbY = (float) phaseOffsetSlider.getPositionOfValue (phaseOffsetSlider.getValue());
+    constexpr int bubbleW = 46, bubbleH = 22, gap = 4;
+    phaseBubble.setBounds (phaseOffsetSlider.getRight() + gap,
+                           phaseOffsetSlider.getY() + (int) thumbY - bubbleH / 2,
+                           bubbleW, bubbleH);
+    phaseBubble.repaint();
 }
 
 // =============================================================================

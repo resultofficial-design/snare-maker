@@ -56,6 +56,10 @@ public:
     std::atomic<bool> resonantEnabled  { true };
     std::atomic<bool> noiseEnabled     { true };
 
+    // ── Playback position (written by audio thread, read by UI) ─────────────
+    // Elapsed time in seconds since last note-on.  Negative = not playing.
+    std::atomic<float> playbackPositionSec { -1.0f };
+
     // ── Sample loading (Phase 8) ─────────────────────────────────────────────
     juce::AudioFormatManager formatManager;
 

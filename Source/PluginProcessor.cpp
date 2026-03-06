@@ -213,6 +213,9 @@ void SnareMakerAudioProcessor::resetVoiceState()
     resonantPlaying    = false;
     noiseSamplePlaying = false;
 
+    // Playback position for UI
+    playbackPositionSec.store (-1.0f, std::memory_order_relaxed);
+
     // Filter delay registers (avoid stale state producing noise on next note)
     noiseTypeFilter.reset();
     noiseBrightFilter.reset();
@@ -362,8 +365,8 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const double freqRatio = std::pow (2.0, (double) pitchAmount / 12.0);
 
     // Voice duration: used to normalise amp envelope lookups.
-    // 2× pitchDecay so the envelope spans a longer playback window.
-    const double bodyEnvDurSec = std::max (0.001, (double) pitchDecayMs * 0.001) * 2.0;
+    // 3× pitchDecay so the envelope spans a longer playback window.
+    const double bodyEnvDurSec = std::max (0.001, (double) pitchDecayMs * 0.001) * 3.0;
     const double bodyEnvDurSamples = bodyEnvDurSec * sr;
 
     // Noise uses the same voice duration for its amp envelope normalisation.
@@ -557,6 +560,12 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     }
 
     renderSamples (samplePos, buffer.getNumSamples());
+
+    // Update playback position for UI (once per block, after rendering)
+    if (isPlaying || transientPlaying || resonantPlaying || noiseSamplePlaying)
+        playbackPositionSec.store ((float) (envTime / sr), std::memory_order_relaxed);
+    else
+        playbackPositionSec.store (-1.0f, std::memory_order_relaxed);
 }
 
 // =============================================================================
@@ -584,7 +593,7 @@ double SnareMakerAudioProcessor::getTailLengthSeconds() const
     // Voice duration is based on pitchDecay (envelope time).
     // Generous multiplier so DAW doesn't cut the bounce early.
     const double pitchDecaySec = (double) pPitchDecay->load() * 0.001;
-    return std::max (2.0, pitchDecaySec * 4.0);
+    return std::max (2.0, pitchDecaySec * 7.0);
 }
 
 // =============================================================================

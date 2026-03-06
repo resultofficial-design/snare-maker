@@ -65,6 +65,9 @@ public:
     // Override a single layer's amp envelope (used for Body/Room layer sharing).
     void setLayerAmpEnvelope (WaveLayer layer, FlexibleEnvelope& env);
 
+    // Bind playback position from processor (elapsed seconds, <0 = idle).
+    void setPlaybackPosition (std::atomic<float>& pos) { playbackPos = &pos; }
+
     void paint     (juce::Graphics&) override;
     void resized   () override;
 
@@ -147,6 +150,9 @@ private:
     };
 
     float              waveformDuration = 0.5f;   // seconds, derived from params
+
+    // Playback position (from processor, not owned)
+    std::atomic<float>* playbackPos = nullptr;
 
     // Change detection: last values that produced the current waveform
     float lastWfBodyFreq    = -1.0f;
