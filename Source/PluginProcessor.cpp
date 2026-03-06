@@ -571,6 +571,7 @@ void SnareMakerAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
             saveEnvelope ("PitchEnvelope",    pitchEnvelope);
             saveEnvelope ("BodyAmpEnvelope",  bodyAmpEnvelope);
             saveEnvelope ("NoiseAmpEnvelope", noiseAmpEnvelope);
+            saveEnvelope ("RoomAmpEnvelope",  roomAmpEnvelope);
         }
         copyXmlToBinary (*xml, destData);
     }
@@ -604,6 +605,7 @@ void SnareMakerAudioProcessor::setStateInformation (const void* data, int sizeIn
         loadEnvelope ("PitchEnvelope",    pitchEnvelope);
         loadEnvelope ("BodyAmpEnvelope",  bodyAmpEnvelope);
         loadEnvelope ("NoiseAmpEnvelope", noiseAmpEnvelope);
+        loadEnvelope ("RoomAmpEnvelope",  roomAmpEnvelope);
     }
 }
 

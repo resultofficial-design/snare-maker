@@ -283,21 +283,23 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     const bool showBody      = (tab == Tab::Body);
     const bool showNoise     = (tab == Tab::Noise);
     const bool showResonant  = (tab == Tab::Resonant);
+    const bool showRoom      = (tab == Tab::Room);
 
     // Envelope mode buttons
     noiseAmpBtn .setVisible (false);
 
-    // Envelope editor visible for Transient, Body, Noise, and Resonant
-    envelopeEditor.setVisible (showTransient || showBody || showNoise || showResonant);
+    // Envelope editor visible for Transient, Body, Noise, Resonant, and Room
+    envelopeEditor.setVisible (showTransient || showBody || showNoise || showResonant || showRoom);
 
     // Map tab → waveform layer highlight
     if      (showTransient) envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Transient);
     else if (showBody)      envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Body);
     else if (showResonant)  envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Resonant);
     else if (showNoise)     envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Noise);
+    else if (showRoom)      envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Body);
 
-    // Resonant / Noise tab: envelope at 80% of full width (side panel fills the rest)
-    if (showResonant || showNoise)
+    // Resonant / Noise / Room tab: envelope at 80% of full width (side panel fills the rest)
+    if (showResonant || showNoise || showRoom)
     {
         auto b = envEditorFullBounds;
         b.setWidth (b.getWidth() * 4 / 5 - 30);
@@ -329,7 +331,8 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     else if (showBody)     setEnvMode (EnvMode::Pitch);
     else if (showNoise)    setEnvMode (EnvMode::NoiseAmp);
     else if (showResonant) setEnvMode (EnvMode::ResonantAmp);
-    // Room and Sauce: no envelope / no mode buttons (placeholder only)
+    else if (showRoom)     setEnvMode (EnvMode::RoomAmp);
+    // Sauce: no envelope / no mode buttons (placeholder only)
 
     repaint();
 }
@@ -363,6 +366,7 @@ void SnareMakerAudioProcessorEditor::setEnvMode (EnvMode mode)
         case EnvMode::BodyAmp:     envelopeEditor.setEnvelope (audioProcessor.bodyAmpEnvelope);     break;
         case EnvMode::NoiseAmp:    envelopeEditor.setEnvelope (audioProcessor.noiseAmpEnvelope);    break;
         case EnvMode::ResonantAmp: envelopeEditor.setEnvelope (audioProcessor.resonantAmpEnvelope); break;
+        case EnvMode::RoomAmp:     envelopeEditor.setEnvelope (audioProcessor.roomAmpEnvelope);     break;
     }
 }
 
@@ -868,8 +872,8 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
     if (activeTab != Tab::Sauce)
         paintSnareDrum (g, area);
 
-    // Transient / Resonant / Noise: side panel fills from waveform right edge to Output
-    if (activeTab == Tab::Transient || activeTab == Tab::Resonant || activeTab == Tab::Noise)
+    // Transient / Resonant / Noise / Room: side panel fills from waveform right edge to Output
+    if (activeTab == Tab::Transient || activeTab == Tab::Resonant || activeTab == Tab::Noise || activeTab == Tab::Room)
     {
         const int waveW = envEditorFullBounds.getWidth() * 4 / 5 - 30;
         const int sideX = envEditorFullBounds.getX() + waveW + kUISpacing;
@@ -1084,15 +1088,8 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
                     juce::Justification::centred, false);
     }
 
-    // Room / Sauce: centred placeholder text
-    if (activeTab == Tab::Room)
-    {
-        g.setColour (kRoomPurple.withAlpha (0.40f));
-        g.setFont (lnf.interMediumFont (15.0f));
-        g.drawText ("Room Module (Coming Soon)",
-                    area, juce::Justification::centred, false);
-    }
-    else if (activeTab == Tab::Sauce)
+    // Sauce: centred placeholder text
+    if (activeTab == Tab::Sauce)
     {
         // "SECRET SAUCE" label centered below the knob
         constexpr int knobSize = 180;

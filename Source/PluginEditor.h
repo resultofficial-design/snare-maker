@@ -106,7 +106,7 @@ private:
     juce::Rectangle<int>       envEditorFullBounds;   // full-width bounds (set in resized)
 
     // ── Envelope mode buttons (below envelope editor) ────────────────────────
-    enum class EnvMode { Pitch, BodyAmp, NoiseAmp, ResonantAmp };
+    enum class EnvMode { Pitch, BodyAmp, NoiseAmp, ResonantAmp, RoomAmp };
     EnvMode envMode { EnvMode::Pitch };
 
     juce::Rectangle<int> envModeBounds;   // hit-test for AMP|PITCH selector

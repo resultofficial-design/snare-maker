@@ -42,6 +42,7 @@ public:
     FlexibleEnvelope bodyAmpEnvelope;
     FlexibleEnvelope noiseAmpEnvelope;
     FlexibleEnvelope resonantAmpEnvelope;
+    FlexibleEnvelope roomAmpEnvelope;
     juce::SpinLock   envelopeLock;
 
     // Global waveform display mode (0 = Simple, 1 = True).
