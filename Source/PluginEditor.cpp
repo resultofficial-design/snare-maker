@@ -512,6 +512,9 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     else if (showRoom)     setEnvMode (EnvMode::RoomAmp);
     // Sauce: no envelope / no mode buttons (placeholder only)
 
+    // Drag & drop: enabled for sample-accepting tabs only
+    envelopeEditor.setDragDropEnabled (showTransient || showResonant || showNoise || showRoom);
+
     repaint();
 }
 

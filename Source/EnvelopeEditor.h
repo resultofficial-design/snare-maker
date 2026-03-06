@@ -23,6 +23,7 @@
 // =============================================================================
 
 class EnvelopeEditor : public juce::Component,
+                       public juce::FileDragAndDropTarget,
                        private juce::Timer
 {
 public:
@@ -58,6 +59,16 @@ public:
     void mouseDoubleClick (const juce::MouseEvent&) override;
 
     EnvelopeModeToggle::DisplayMode getDisplayMode() const { return modeToggle.getMode(); }
+
+    // ── Drag & drop support ────────────────────────────────────────────────
+    void setDragDropEnabled (bool enabled);
+    std::function<void (const juce::String&)> onSampleDropped;
+
+    // FileDragAndDropTarget overrides
+    bool isInterestedInFileDrag (const juce::StringArray& files) override;
+    void fileDragEnter (const juce::StringArray& files, int x, int y) override;
+    void fileDragExit  (const juce::StringArray& files) override;
+    void filesDropped  (const juce::StringArray& files, int x, int y) override;
 
 private:
     EnvelopeModeToggle modeToggle;
@@ -157,6 +168,10 @@ private:
     // Build exponentially-shaped path through all points
     // (piecewise quadratic Bezier, per-segment curvature)
     juce::Path buildCurvePath () const;
+
+    // ── Drag & drop state ────────────────────────────────────────────────
+    bool dragDropEnabled = false;
+    bool fileDragOver    = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (EnvelopeEditor)
 };

@@ -668,6 +668,47 @@ void EnvelopeEditor::mouseDoubleClick (const juce::MouseEvent& e)
 }
 
 // =============================================================================
+// Drag & drop
+// =============================================================================
+
+void EnvelopeEditor::setDragDropEnabled (bool enabled)
+{
+    dragDropEnabled = enabled;
+    if (! enabled)
+    {
+        fileDragOver = false;
+        repaint();
+    }
+}
+
+bool EnvelopeEditor::isInterestedInFileDrag (const juce::StringArray&)
+{
+    return dragDropEnabled;
+}
+
+void EnvelopeEditor::fileDragEnter (const juce::StringArray&, int, int)
+{
+    fileDragOver = true;
+    repaint();
+}
+
+void EnvelopeEditor::fileDragExit (const juce::StringArray&)
+{
+    fileDragOver = false;
+    repaint();
+}
+
+void EnvelopeEditor::filesDropped (const juce::StringArray& files, int, int)
+{
+    fileDragOver = false;
+
+    if (files.size() > 0 && onSampleDropped)
+        onSampleDropped (files[0]);
+
+    repaint();
+}
+
+// =============================================================================
 // paint
 // =============================================================================
 
@@ -691,6 +732,15 @@ void EnvelopeEditor::paint (juce::Graphics& g)
 
     g.setColour (juce::Colour (kBgColour));
     g.fillRoundedRectangle (bounds, kCornerRadius);
+
+    // ── Drag overlay (replaces waveform / envelope while dragging) ───────────
+    if (fileDragOver)
+    {
+        g.setColour (juce::Colours::white.withAlpha (0.85f));
+        g.setFont (juce::Font (juce::FontOptions {}.withHeight (16.0f)));
+        g.drawText ("Drag here", bounds, juce::Justification::centred);
+        return;
+    }
 
     // ── 2. Grid lines (interior only) ─────────────────────────────────────────
     g.setColour (juce::Colour (kGridColour));
