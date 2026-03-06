@@ -62,7 +62,7 @@ SnareMakerAudioProcessorEditor::SnareLookAndFeel::SnareLookAndFeel()
     setColour (juce::Label::textColourId,                      kTextBright);
     setColour (juce::PopupMenu::backgroundColourId,            kBgPanel);
     setColour (juce::PopupMenu::textColourId,                  kTextBright);
-    setColour (juce::PopupMenu::highlightedBackgroundColourId, kPitchBlue);
+    setColour (juce::PopupMenu::highlightedBackgroundColourId, kBgPanelHov);
     setColour (juce::PopupMenu::highlightedTextColourId,       kTextBright);
 }
 
@@ -191,6 +191,80 @@ void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawRotarySlider (
         g.drawLine (cx + px * pointerTail, cy + py * pointerTail,
                     cx + px * pointerLen,  cy + py * pointerLen, 2.0f);
     }
+}
+
+// =============================================================================
+// PopupMenu drawing
+// =============================================================================
+
+void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawPopupMenuBackground (
+    juce::Graphics& g, int width, int height)
+{
+    const float w = (float) width;
+    const float h = (float) height;
+    constexpr float r = 8.0f;
+
+    // Build path: flat top corners, rounded bottom corners
+    juce::Path bg;
+    bg.startNewSubPath (0.0f, 0.0f);
+    bg.lineTo (w, 0.0f);
+    bg.lineTo (w, h - r);
+    bg.quadraticTo (w, h, w - r, h);
+    bg.lineTo (r, h);
+    bg.quadraticTo (0.0f, h, 0.0f, h - r);
+    bg.closeSubPath();
+
+    // Clear entire popup window to transparent (eliminates white corner artifacts)
+    g.fillAll (juce::Colours::transparentBlack);
+
+    g.setColour (findColour (juce::PopupMenu::backgroundColourId));
+    g.fillPath (bg);
+}
+
+void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawPopupMenuItem (
+    juce::Graphics& g,
+    const juce::Rectangle<int>& area,
+    bool /*isSeparator*/, bool isActive, bool isHighlighted,
+    bool /*isTicked*/, bool /*hasSubMenu*/,
+    const juce::String& text,
+    const juce::String& /*shortcutKeyText*/,
+    const juce::Drawable* /*icon*/,
+    const juce::Colour* textColour)
+{
+    constexpr int hPad = 10;
+    auto textArea = area.reduced (hPad, 0);
+
+    if (isHighlighted && isActive)
+    {
+        g.setColour (findColour (juce::PopupMenu::highlightedBackgroundColourId));
+        g.fillRoundedRectangle (area.reduced (4, 1).toFloat(), 4.0f);
+    }
+
+    g.setColour (textColour != nullptr ? *textColour
+                 : findColour (isHighlighted ? juce::PopupMenu::highlightedTextColourId
+                                             : juce::PopupMenu::textColourId)
+                       .withAlpha (isActive ? 1.0f : 0.4f));
+    g.setFont (interRegularFont (13.0f));
+    g.drawText (text, textArea, juce::Justification::centredLeft, true);
+}
+
+void SnareMakerAudioProcessorEditor::SnareLookAndFeel::getIdealPopupMenuItemSize (
+    const juce::String& text,
+    bool isSeparator, int /*standardMenuItemHeight*/,
+    int& idealWidth, int& idealHeight)
+{
+    if (isSeparator)
+    {
+        idealWidth  = 50;
+        idealHeight = 8;
+        return;
+    }
+
+    idealHeight = 28;
+
+    juce::GlyphArrangement glyphs;
+    glyphs.addLineOfText (interRegularFont (13.0f), text, 0.0f, 0.0f);
+    idealWidth = (int) glyphs.getBoundingBox (0, -1, true).getWidth() + 28;
 }
 
 // =============================================================================
@@ -781,9 +855,15 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
             menu.addItem (6, "Static");
             menu.addItem (7, "Perc Noise");
             menu.addItem (8, "User");
+            menu.setLookAndFeel (&lnf);
+            openDropdown = OpenDropdown::NoiseSample;
+            repaint();
             menu.showMenuAsync (juce::PopupMenu::Options()
                 .withTargetScreenArea (localAreaToGlobal (noiseSampleBtnBounds))
-                .withMinimumWidth (noiseSampleBtnBounds.getWidth()));
+                .withMinimumWidth (noiseSampleBtnBounds.getWidth())
+                .withPreferredPopupDirection (juce::PopupMenu::Options::PopupDirection::downwards)
+                .withStandardItemHeight (28),
+                [this] (int) { openDropdown = OpenDropdown::None; repaint(); });
             return;
         }
     }
@@ -799,9 +879,15 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
             menu.addItem (2, "Snare");
             menu.addItem (3, "Percussion");
             menu.addItem (4, "FX");
+            menu.setLookAndFeel (&lnf);
+            openDropdown = OpenDropdown::TransientSample;
+            repaint();
             menu.showMenuAsync (juce::PopupMenu::Options()
                 .withTargetScreenArea (localAreaToGlobal (transientSampleBtnBounds))
-                .withMinimumWidth (transientSampleBtnBounds.getWidth()));
+                .withMinimumWidth (transientSampleBtnBounds.getWidth())
+                .withPreferredPopupDirection (juce::PopupMenu::Options::PopupDirection::downwards)
+                .withStandardItemHeight (28),
+                [this] (int) { openDropdown = OpenDropdown::None; repaint(); });
             return;
         }
     }
@@ -819,9 +905,15 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
             menu.addItem (4, "Chamber");
             menu.addItem (5, "Hall");
             menu.addItem (6, "Drum Room");
+            menu.setLookAndFeel (&lnf);
+            openDropdown = OpenDropdown::RoomIr;
+            repaint();
             menu.showMenuAsync (juce::PopupMenu::Options()
                 .withTargetScreenArea (localAreaToGlobal (roomIrBtnBounds))
-                .withMinimumWidth (roomIrBtnBounds.getWidth()));
+                .withMinimumWidth (roomIrBtnBounds.getWidth())
+                .withPreferredPopupDirection (juce::PopupMenu::Options::PopupDirection::downwards)
+                .withStandardItemHeight (28),
+                [this] (int) { openDropdown = OpenDropdown::None; repaint(); });
             return;
         }
     }
@@ -1102,8 +1194,16 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             transientSampleBtnBounds = { selX2, selY2, selW2, selH };
 
             g.setColour (juce::Colour (0xff2A3038));
-            g.fillRoundedRectangle ((float) selX2, (float) selY2,
-                                    (float) selW2, (float) selH, 8.0f);
+            {
+                const bool dropOpen = (openDropdown == OpenDropdown::TransientSample);
+                juce::Path containerPath;
+                containerPath.addRoundedRectangle ((float) selX2, (float) selY2,
+                                                   (float) selW2, (float) selH,
+                                                   8.0f, 8.0f,
+                                                   true, true,          // top-left, top-right rounded
+                                                   !dropOpen, !dropOpen); // bottom corners flat when open
+                g.fillPath (containerPath);
+            }
 
             constexpr int arrowW = 22;
             const int prevX = selX2;
@@ -1201,8 +1301,16 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             roomIrBtnBounds = { selX2, selY2, selW2, selH };
 
             g.setColour (juce::Colour (0xff2A3038));
-            g.fillRoundedRectangle ((float) selX2, (float) selY2,
-                                    (float) selW2, (float) selH, 8.0f);
+            {
+                const bool dropOpen = (openDropdown == OpenDropdown::RoomIr);
+                juce::Path containerPath;
+                containerPath.addRoundedRectangle ((float) selX2, (float) selY2,
+                                                   (float) selW2, (float) selH,
+                                                   8.0f, 8.0f,
+                                                   true, true,
+                                                   !dropOpen, !dropOpen);
+                g.fillPath (containerPath);
+            }
 
             constexpr int arrowW = 22;
             const int prevX = selX2;
@@ -1432,8 +1540,16 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
                 noiseSampleBtnBounds = { selX, smpY, selW, smpSelH };
 
                 g.setColour (juce::Colour (0xff2A3038));
-                g.fillRoundedRectangle ((float) selX, (float) smpY,
-                                        (float) selW, (float) smpSelH, 8.0f);
+                {
+                    const bool dropOpen = (openDropdown == OpenDropdown::NoiseSample);
+                    juce::Path containerPath;
+                    containerPath.addRoundedRectangle ((float) selX, (float) smpY,
+                                                       (float) selW, (float) smpSelH,
+                                                       8.0f, 8.0f,
+                                                       true, true,
+                                                       !dropOpen, !dropOpen);
+                    g.fillPath (containerPath);
+                }
 
                 constexpr int arrowW = 22;
                 const int prevX2 = selX;

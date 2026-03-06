@@ -59,6 +59,19 @@ private:
                                float rotaryStartAngle, float rotaryEndAngle,
                                juce::Slider&) override;
 
+        void drawPopupMenuBackground (juce::Graphics&, int width, int height) override;
+        void drawPopupMenuItem (juce::Graphics&,
+                                const juce::Rectangle<int>& area,
+                                bool isSeparator, bool isActive, bool isHighlighted,
+                                bool isTicked, bool hasSubMenu,
+                                const juce::String& text,
+                                const juce::String& shortcutKeyText,
+                                const juce::Drawable* icon,
+                                const juce::Colour* textColour) override;
+        void getIdealPopupMenuItemSize (const juce::String& text,
+                                        bool isSeparator, int standardMenuItemHeight,
+                                        int& idealWidth, int& idealHeight) override;
+
         // Helpers for paint functions
         juce::Font interRegularFont (float height) const;
         juce::Font interMediumFont  (float height) const;
@@ -156,6 +169,10 @@ private:
     juce::Rectangle<int>        roomDropBounds;        // dropdown hit-test
     juce::TextButton            roomPrevBtn  { "<" };
     juce::TextButton            roomNextBtn  { ">" };
+
+    // ── Dropdown open state (for flattening container bottom corners) ───────
+    enum class OpenDropdown { None, TransientSample, NoiseSample, RoomIr };
+    OpenDropdown openDropdown { OpenDropdown::None };
 
     // ── Sauce knob (visual only, no APVTS) ──────────────────────────────────
     juce::Slider sauceKnob;
