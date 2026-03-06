@@ -205,9 +205,13 @@ void SnareMakerAudioProcessor::resetVoiceState()
     bodyOnsetGain  = 1.0;
     bodyOnsetRate  = 0.0;
 
-    // Noise ADSR
-    noiseStage     = NoiseStage::Idle;
-    noiseEnvLevel  = 0.0;
+    // Sample playback
+    transientPlayPos   = 0;
+    resonantPlayPos    = 0;
+    noiseSamplePlayPos = 0;
+    transientPlaying   = false;
+    resonantPlaying    = false;
+    noiseSamplePlaying = false;
 
     // Filter delay registers (avoid stale state producing noise on next note)
     noiseTypeFilter.reset();
@@ -254,9 +258,22 @@ void SnareMakerAudioProcessor::triggerNote (float phaseOffsetDeg)
     // Start pitch envelope from the beginning
     pitchEnvelope.noteOn();
 
-    // Retrigger noise ADSR from current level (zero-click: linear attack ramps
-    // from wherever noiseEnvLevel currently is, not forced to 0).
-    noiseStage = NoiseStage::Attack;
+    // Start sample playback for loaded layers
+    if (transientSampleBuffer.getNumSamples() > 0)
+    {
+        transientPlaying = true;
+        transientPlayPos = 0;
+    }
+    if (resonantSampleBuffer.getNumSamples() > 0)
+    {
+        resonantPlaying = true;
+        resonantPlayPos = 0;
+    }
+    if (noiseSampleBuffer.getNumSamples() > 0)
+    {
+        noiseSamplePlaying = true;
+        noiseSamplePlayPos = 0;
+    }
 }
 
 // ── releaseNote ───────────────────────────────────────────────────────────────
@@ -266,15 +283,8 @@ void SnareMakerAudioProcessor::triggerNote (float phaseOffsetDeg)
 
 void SnareMakerAudioProcessor::releaseNote()
 {
-    // Pitch envelope: no-op (percussive, runs to natural completion)
+    // Percussive: all envelopes run to natural completion, note-off is a no-op.
     pitchEnvelope.noteOff();
-
-    if (noiseStage == NoiseStage::Attack
-     || noiseStage == NoiseStage::Decay
-     || noiseStage == NoiseStage::Sustain)
-    {
-        noiseStage = NoiseStage::Release;
-    }
 }
 
 // ── killAll ───────────────────────────────────────────────────────────────────
@@ -337,10 +347,6 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     pitchEnvelope.setDuration ((double) pitchDecayMs);
 
     const float noiseLevel      = pNoiseLevel->load();
-    const float noiseAttackMs   = pNoiseAttack->load();
-    const float noiseDecayMs    = pNoiseDecay->load();
-    const float noiseSustainLvl = pNoiseSustain->load();
-    const float noiseReleaseMs  = pNoiseRelease->load();
     const int   noiseFiltMode   = static_cast<int> (pNoiseFiltType->load());
     const float noiseFiltFreq   = pNoiseFiltFreq->load();
     const float noiseFiltQ      = pNoiseFiltQ->load();
@@ -352,26 +358,24 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 
     const double sr = currentSampleRate;
 
-    // Body amplitude decay: tau = 2× envelope duration, stop at ≈ -72 dB.
-    // (Pitch envelope duration is managed by pitchEnvelope.setDuration above.)
-    const double bodyTau      = std::max (1.0, pitchDecayMs * 0.001 * sr) * 2.0;
-    const double bodyStopTime = bodyTau * 6.0;
-
-    // Noise ADSR (all in samples)
-    const double attackSamples  = std::max (1.0, noiseAttackMs  * 0.001 * sr);
-    const double decaySamples   = std::max (1.0, noiseDecayMs   * 0.001 * sr);
-    const double releaseSamples = std::max (1.0, noiseReleaseMs * 0.001 * sr);
-
-    // One-pole exponential-approach coefficients.
-    // After N samples, |level − target| ≈ initial_distance × e^-1.
-    const double decayCoeff   = 1.0 - std::exp (-1.0 / decaySamples);
-    const double releaseCoeff = 1.0 - std::exp (-1.0 / releaseSamples);
-
     // Pitch ratio: semitones above bodyFreq at trigger
     const double freqRatio = std::pow (2.0, (double) pitchAmount / 12.0);
 
+    // Voice duration: used to normalise amp envelope lookups.
+    // Body envelope duration = pitchDecay parameter (same as pitch env).
+    const double bodyEnvDurSec = std::max (0.001, (double) pitchDecayMs * 0.001);
+    const double bodyEnvDurSamples = bodyEnvDurSec * sr;
+
+    // Noise uses the same voice duration for its amp envelope normalisation.
+    // Noise ADSR params (attack/decay/sustain/release) are no longer used for
+    // amplitude shaping — the amp envelope handles it.  Filters still apply.
+    const double noiseEnvDurSamples = bodyEnvDurSamples;
+
+    // Voice stop time: when envTime exceeds this AND all samples are done.
+    // Use a generous multiplier so the amp envelope tail isn't cut short.
+    const double voiceStopTime = bodyEnvDurSamples * 2.0;
+
     // ── Update noise filter coefficients once per block ────────────────────
-    // Recomputing every block is safe and cheap; avoids per-sample branching.
 
     switch (noiseFiltMode)
     {
@@ -381,13 +385,25 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         default: noiseTypeFilter.setHighPass (sr, noiseFiltFreq, noiseFiltQ); break;
     }
 
-    // High shelf at 3 kHz; Q=0.707 gives a maximally-flat shelf transition.
     noiseBrightFilter.setHighShelf (sr, 3000.0, 0.707, noiseBrightDb);
 
     // ── Arm gain smoother for this block ──────────────────────────────────
-    // setTargetValue() queues the ramp; getNextValue() is called per-sample
-    // below so the smoother always stays exactly in sync with buffer position.
     gainSmooth.setTargetValue (juce::Decibels::decibelsToGain (outputGainDb));
+
+    // ── Layer enabled flags (read once per block) ────────────────────────
+    const bool layerTransient = transientEnabled.load (std::memory_order_relaxed);
+    const bool layerBody      = bodyEnabled.load      (std::memory_order_relaxed);
+    const bool layerResonant  = resonantEnabled.load  (std::memory_order_relaxed);
+    const bool layerNoise     = noiseEnabled.load     (std::memory_order_relaxed);
+
+    // ── Sample buffer lengths (read once per block, safe: samples are mono) ─
+    const int transientLen = transientSampleBuffer.getNumSamples();
+    const int resonantLen  = resonantSampleBuffer.getNumSamples();
+    const int noiseSmpLen  = noiseSampleBuffer.getNumSamples();
+
+    const float* transientData = (transientLen > 0) ? transientSampleBuffer.getReadPointer (0) : nullptr;
+    const float* resonantData  = (resonantLen  > 0) ? resonantSampleBuffer.getReadPointer (0)  : nullptr;
+    const float* noiseSmpData  = (noiseSmpLen  > 0) ? noiseSampleBuffer.getReadPointer (0)     : nullptr;
 
     // ── Per-sample synthesis ───────────────────────────────────────────────
 
@@ -395,20 +411,32 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     {
         for (int s = start; s < end; ++s)
         {
-            // ── Advance gain smoother for EVERY sample ─────────────────────
-            // Must happen unconditionally so the smoother stays in sync
-            // with the host's buffer position even during silent blocks.
             const float gainThisSample = gainSmooth.getNextValue();
 
-            const bool bodyActive    = isPlaying;
-            const bool noiseActive   = (noiseStage != NoiseStage::Idle);
-            const bool declickActive = (bodyFadeLeft > 0);
+            const bool bodyActive      = isPlaying;
+            const bool declickActive   = (bodyFadeLeft > 0);
+            const bool samplesPlaying  = transientPlaying || resonantPlaying || noiseSamplePlaying;
 
-            // Nothing to render – skip sample but keep smoother advanced.
-            if (!bodyActive && !noiseActive && !declickActive)
+            if (!bodyActive && !declickActive && !samplesPlaying)
                 continue;
 
-            // ── Body oscillator ────────────────────────────────────────────
+            float mix = 0.0f;
+
+            // ── Transient sample layer ─────────────────────────────────────
+            if (transientPlaying && layerTransient && transientData != nullptr)
+            {
+                const float tNorm = (float) transientPlayPos / (float) transientLen;
+                const float ampEnv = (float) transientAmpEnvelope.evaluate ((double) tNorm);
+                mix += transientData[transientPlayPos] * ampEnv;
+            }
+            if (transientPlaying)
+            {
+                ++transientPlayPos;
+                if (transientPlayPos >= transientLen)
+                    transientPlaying = false;
+            }
+
+            // ── Body oscillator layer ──────────────────────────────────────
             float bodyOut = 0.0f;
 
             if (bodyActive)
@@ -416,104 +444,87 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                 const double t = envTime;
                 envTime += 1.0;
 
-                // Pitch envelope: stateful per-sample advance
                 const double pitchEnv = pitchEnvelope.getNextSample();
-
                 const double currentFreq = bodyFreq * (1.0 + (freqRatio - 1.0) * pitchEnv);
 
                 phase += currentFreq / sr;
                 if (phase >= 1.0) phase -= 1.0;
 
-                const float rawBody = (float) (
-                    std::sin (juce::MathConstants<double>::twoPi * phase)
-                    * std::exp (-t / bodyTau));
+                // Amp envelope replaces hardcoded exponential decay
+                const double envNorm = t / bodyEnvDurSamples;
+                const float bodyAmp = (float) bodyAmpEnvelope.evaluate (
+                    std::min (envNorm, 1.0));
 
-                // Onset gain ramp (zero-click on retrigger): ramps 0→1 over
-                // kDeclickSamples, then stays at 1.0 for the rest of the note.
+                const float rawBody = (float) std::sin (
+                    juce::MathConstants<double>::twoPi * phase) * bodyAmp;
+
                 if (bodyOnsetGain < 1.0)
                     bodyOnsetGain = std::min (1.0, bodyOnsetGain + bodyOnsetRate);
 
                 bodyOut        = rawBody * (float) bodyOnsetGain;
-                bodyLastOutput = bodyOut;  // snapshot for next retrigger declick
+                bodyLastOutput = bodyOut;
 
-                // Stop body when amplitude is negligible (≈ −72 dB).
-                // Update isPlaying before the Sustain→Release check below.
-                if (t >= bodyStopTime)
+                // Stop when amp envelope is done and past minimum duration
+                if (t >= voiceStopTime && bodyAmp < 1e-5f)
                     isPlaying = false;
             }
 
-            // ── Body declick tail (Phase 2c) ───────────────────────────────
-            // Fades out the frozen last-output of the previous voice over
-            // kDeclickSamples, crossfading with the new body's onset ramp.
+            if (layerBody)
+                mix += bodyOut;
+
+            // Body declick tail
             if (declickActive)
             {
                 const float fadeGain = (float) bodyFadeLeft / (float) kDeclickSamples;
-                bodyOut += bodyFadeSample * fadeGain;
+                mix += bodyFadeSample * fadeGain;
                 --bodyFadeLeft;
             }
 
-            // ── Noise ADSR (Phase 2b) ──────────────────────────────────────
-            float noiseOut = 0.0f;
-
-            if (noiseActive)
+            // ── Resonant sample layer ──────────────────────────────────────
+            if (resonantPlaying && layerResonant && resonantData != nullptr)
             {
-                switch (noiseStage)
+                const float tNorm = (float) resonantPlayPos / (float) resonantLen;
+                const float ampEnv = (float) resonantAmpEnvelope.evaluate ((double) tNorm);
+                mix += resonantData[resonantPlayPos] * ampEnv;
+            }
+            if (resonantPlaying)
+            {
+                ++resonantPlayPos;
+                if (resonantPlayPos >= resonantLen)
+                    resonantPlaying = false;
+            }
+
+            // ── Noise layer (generated) ────────────────────────────────────
+            if (bodyActive && layerNoise)
+            {
+                const double envNorm = (envTime - 1.0) / noiseEnvDurSamples;
+                const float noiseAmp = (float) noiseAmpEnvelope.evaluate (
+                    std::min (envNorm, 1.0));
+
+                if (noiseAmp > 1e-6f)
                 {
-                    case NoiseStage::Attack:
-                        // Linear ramp: zero-click because we start from the
-                        // current noiseEnvLevel (may be non-zero on retrigger).
-                        noiseEnvLevel += 1.0 / attackSamples;
-                        if (noiseEnvLevel >= 1.0)
-                        {
-                            noiseEnvLevel = 1.0;
-                            noiseStage    = NoiseStage::Decay;
-                        }
-                        break;
-
-                    case NoiseStage::Decay:
-                        // Exponential approach toward sustain level.
-                        noiseEnvLevel += ((double) noiseSustainLvl - noiseEnvLevel)
-                                         * decayCoeff;
-                        if (noiseEnvLevel <= (double) noiseSustainLvl + 1e-4)
-                        {
-                            noiseEnvLevel = noiseSustainLvl;
-                            // sustain=0 → skip Sustain, go straight to Idle.
-                            noiseStage = (noiseSustainLvl > 1e-4)
-                                         ? NoiseStage::Sustain
-                                         : NoiseStage::Idle;
-                        }
-                        break;
-
-                    case NoiseStage::Sustain:
-                        // Hold at sustain level.
-                        // Auto-release when the body oscillator finishes so
-                        // the sound never sustains indefinitely without note-off.
-                        if (!isPlaying)
-                            noiseStage = NoiseStage::Release;
-                        break;
-
-                    case NoiseStage::Release:
-                        // Exponential decay toward 0.
-                        noiseEnvLevel -= noiseEnvLevel * releaseCoeff;
-                        if (noiseEnvLevel < 1e-5)
-                        {
-                            noiseEnvLevel = 0.0;
-                            noiseStage    = NoiseStage::Idle;
-                        }
-                        break;
-
-                    case NoiseStage::Idle:
-                        break;
+                    const float rawNoise = (random.nextFloat() * 2.0f - 1.0f)
+                                           * noiseLevel * noiseAmp;
+                    mix += noiseBrightFilter.process (noiseTypeFilter.process (rawNoise));
                 }
+            }
 
-                // White noise → type filter (HP / BP / LP) → brightness shelf
-                const float rawNoise = (random.nextFloat() * 2.0f - 1.0f)
-                                       * noiseLevel * (float) noiseEnvLevel;
-                noiseOut = noiseBrightFilter.process (noiseTypeFilter.process (rawNoise));
+            // ── Noise sample layer (loaded sample, uses noise amp envelope) ─
+            if (noiseSamplePlaying && layerNoise && noiseSmpData != nullptr)
+            {
+                const float tNorm = (float) noiseSamplePlayPos / (float) noiseSmpLen;
+                const float ampEnv = (float) noiseAmpEnvelope.evaluate ((double) tNorm);
+                mix += noiseSmpData[noiseSamplePlayPos] * ampEnv * noiseLevel;
+            }
+            if (noiseSamplePlaying)
+            {
+                ++noiseSamplePlayPos;
+                if (noiseSamplePlayPos >= noiseSmpLen)
+                    noiseSamplePlaying = false;
             }
 
             // ── Mix and apply smoothed output gain ─────────────────────────
-            const float sample = (bodyOut + noiseOut) * gainThisSample;
+            const float sample = mix * gainThisSample;
 
             for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
                 buffer.addSample (ch, s, sample);
@@ -570,13 +581,10 @@ bool   SnareMakerAudioProcessor::isMidiEffect() const { return false; }
 
 double SnareMakerAudioProcessor::getTailLengthSeconds() const
 {
-    // Body amplitude decays to −72 dB threshold in 6 × bodyTau = 12 × pitchDecay.
-    // Noise Release reaches our 1e-5 threshold in ≈ 12 × noiseRelease (for the
-    // exponential decay used in the Release stage).
-    // Return whichever tail is longer so the DAW doesn't cut the bounce early.
-    const double pitchDecaySec   = (double) pPitchDecay->load()  * 0.001;
-    const double noiseReleaseSec = (double) pNoiseRelease->load() * 0.001;
-    return std::max (pitchDecaySec * 12.0, noiseReleaseSec * 12.0);
+    // Voice duration is based on pitchDecay (envelope time).
+    // Generous multiplier so DAW doesn't cut the bounce early.
+    const double pitchDecaySec = (double) pPitchDecay->load() * 0.001;
+    return std::max (2.0, pitchDecaySec * 4.0);
 }
 
 // =============================================================================

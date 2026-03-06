@@ -50,6 +50,12 @@ public:
     // Shared across all EnvelopeEditor instances.
     std::atomic<int> waveformDisplayMode { 1 };   // default = True
 
+    // ── Layer enabled flags (written by editor, read by audio thread) ───────
+    std::atomic<bool> transientEnabled { true };
+    std::atomic<bool> bodyEnabled      { true };
+    std::atomic<bool> resonantEnabled  { true };
+    std::atomic<bool> noiseEnabled     { true };
+
     // ── Sample loading (Phase 8) ─────────────────────────────────────────────
     juce::AudioFormatManager formatManager;
 
@@ -129,10 +135,13 @@ private:
     double bodyOnsetGain   { 1.0 };  // [0,1] onset multiplier for new body
     double bodyOnsetRate   { 0.0 };  // per-sample increment for bodyOnsetGain
 
-    // ── Noise ADSR state (Phase 2b, audio thread only) ────────────────────
-    enum class NoiseStage { Idle, Attack, Decay, Sustain, Release };
-    NoiseStage noiseStage    { NoiseStage::Idle };
-    double     noiseEnvLevel { 0.0 };   // current ADSR level [0, 1]
+    // ── Sample playback state (audio thread only) ─────────────────────────
+    int  transientPlayPos     { 0 };
+    int  resonantPlayPos      { 0 };
+    int  noiseSamplePlayPos   { 0 };
+    bool transientPlaying     { false };
+    bool resonantPlaying      { false };
+    bool noiseSamplePlaying   { false };
 
     // ── Noise filter instances (Phase 2b, audio thread only) ──────────────
     BiquadFilter noiseTypeFilter;     // HP / BP / LP

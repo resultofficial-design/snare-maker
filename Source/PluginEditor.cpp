@@ -478,6 +478,12 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
 
     // Now that bounds exist, set tab + envelope mode
     setActiveTab (Tab::Body);
+
+    // Sync initial layer-enabled state to processor
+    audioProcessor.transientEnabled.store (tabEnabledFor (Tab::Transient), std::memory_order_relaxed);
+    audioProcessor.bodyEnabled     .store (tabEnabledFor (Tab::Body),      std::memory_order_relaxed);
+    audioProcessor.resonantEnabled .store (tabEnabledFor (Tab::Resonant),  std::memory_order_relaxed);
+    audioProcessor.noiseEnabled    .store (tabEnabledFor (Tab::Noise),     std::memory_order_relaxed);
 }
 
 SnareMakerAudioProcessorEditor::~SnareMakerAudioProcessorEditor()
@@ -927,6 +933,12 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
                     if (onlyEnabled)
                         setActiveTab (tab);
                 }
+
+                // Sync layer-enabled state to processor for audio rendering
+                audioProcessor.transientEnabled.store (tabEnabledFor (Tab::Transient), std::memory_order_relaxed);
+                audioProcessor.bodyEnabled     .store (tabEnabledFor (Tab::Body),      std::memory_order_relaxed);
+                audioProcessor.resonantEnabled .store (tabEnabledFor (Tab::Resonant),  std::memory_order_relaxed);
+                audioProcessor.noiseEnabled    .store (tabEnabledFor (Tab::Noise),     std::memory_order_relaxed);
 
                 repaint();
                 return true;
