@@ -107,81 +107,8 @@ void EnvelopeEditor::setLayerSampleData (WaveLayer layer, const float* data, int
         layerBuffers[idx][(size_t) i] = data[s0] + (data[s1] - data[s0]) * frac;
     }
 
-    // Rebuild TRUE (filled) path using the same logic as regenerateWaveform
-    const float plotL  = kPadX;
-    const float plotR  = (float) getWidth() - kPadX;
-    const float plotT  = kPadTop;
-    const float plotB  = (float) getHeight() - kPadBottom;
-    const float plotW  = plotR - plotL;
-    const float plotCY = (plotT + plotB) * 0.5f;
-    const float halfH  = (plotB - plotT) * 0.40f;
-    const int   cols   = std::max (1, (int) plotW);
-
-    layerPaths[idx].clear();
-    if (cols >= 2 && plotW >= 1.0f)
-    {
-        const auto& buf = layerBuffers[idx];
-        const int n = (int) buf.size();
-
-        std::vector<float> topY ((size_t) cols), botY ((size_t) cols);
-        for (int c = 0; c < cols; ++c)
-        {
-            const int s0 = c * n / cols;
-            const int s1 = std::min (n - 1, (c + 1) * n / cols);
-            float lo = buf[(size_t) s0], hi = lo;
-            for (int s = s0 + 1; s <= s1; ++s)
-            {
-                const float v = buf[(size_t) s];
-                if (v < lo) lo = v;
-                if (v > hi) hi = v;
-            }
-            topY[(size_t) c] = plotCY - hi * halfH;
-            botY[(size_t) c] = plotCY - lo * halfH;
-        }
-
-        layerPaths[idx].startNewSubPath (plotL, topY[0]);
-        for (int c = 1; c < cols; ++c)
-            layerPaths[idx].lineTo (plotL + (float) c, topY[(size_t) c]);
-        for (int c = cols - 1; c >= 0; --c)
-            layerPaths[idx].lineTo (plotL + (float) c, botY[(size_t) c]);
-        layerPaths[idx].closeSubPath();
-    }
-
-    // Rebuild SIMPLE path
-    constexpr int kSimplePoints = 256;
-    simplePaths[idx].clear();
-    if (plotW >= 1.0f)
-    {
-        const auto& buf = layerBuffers[idx];
-        const int n = (int) buf.size();
-        const int numPts = std::min (kSimplePoints, n);
-
-        std::vector<float> samples ((size_t) numPts);
-        for (int i = 0; i < numPts; ++i)
-            samples[(size_t) i] = buf[(size_t) (i * (n - 1) / (numPts - 1))];
-
-        auto smooth3 = [] (std::vector<float>& arr)
-        {
-            const int sz = (int) arr.size();
-            if (sz < 3) return;
-            float prev = arr[0];
-            for (int i = 1; i < sz - 1; ++i)
-            {
-                const float cur = arr[(size_t) i];
-                arr[(size_t) i] = (prev + cur + arr[(size_t) (i + 1)]) / 3.0f;
-                prev = cur;
-            }
-        };
-        smooth3 (samples);
-        smooth3 (samples);
-
-        const float step = plotW / (float) (numPts - 1);
-        simplePaths[idx].startNewSubPath (plotL, plotCY - samples[0] * halfH);
-        for (int i = 1; i < numPts; ++i)
-            simplePaths[idx].lineTo (plotL + (float) i * step,
-                                     plotCY - samples[(size_t) i] * halfH);
-    }
-
+    // Rebuild all paths via regenerateWaveform (applies envelope scaling to sample layers)
+    regenerateWaveform();
     repaint();
 }
 
