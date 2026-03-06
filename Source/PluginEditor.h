@@ -131,6 +131,14 @@ private:
     NoiseFilterVisualizer       noiseFilterVis;
     juce::Rectangle<int>        noiseFilterBounds;
 
+    // ── Noise sample panel controls ─────────────────────────────────────────
+    NoiseFilterVisualizer       noiseSampleFilterVis;
+    juce::Rectangle<int>        noiseSampleFilterBounds;
+    juce::Rectangle<int>        noiseSampleBtnBounds;      // LOAD SAMPLE full container
+    juce::Rectangle<int>        noiseSampleDropBounds;     // dropdown hit-test
+    juce::TextButton            noiseSamplePrevBtn  { "<" };
+    juce::TextButton            noiseSampleNextBtn  { ">" };
+
     // ── Transient filter visualizer ──────────────────────────────────────────
     NoiseFilterVisualizer       transientFilterVis;
     juce::Rectangle<int>        transientFilterBounds;
@@ -140,6 +148,14 @@ private:
     // ── Transient sample browser buttons ─────────────────────────────────────
     juce::TextButton            transientPrevBtn  { "<" };
     juce::TextButton            transientNextBtn  { ">" };
+
+    // ── Room control panel ─────────────────────────────────────────────────
+    NoiseFilterVisualizer       roomFilterVis;
+    juce::Rectangle<int>        roomFilterBounds;
+    juce::Rectangle<int>        roomIrBtnBounds;       // LOAD IR full container
+    juce::Rectangle<int>        roomDropBounds;        // dropdown hit-test
+    juce::TextButton            roomPrevBtn  { "<" };
+    juce::TextButton            roomNextBtn  { ">" };
 
     // ── Sauce knob (visual only, no APVTS) ──────────────────────────────────
     juce::Slider sauceKnob;

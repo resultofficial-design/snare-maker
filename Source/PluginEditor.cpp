@@ -212,6 +212,20 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     // ── Noise filter visualizer (hidden until Noise/GEN) ──────────────────
     addChildComponent (noiseFilterVis);
 
+    // ── Noise sample filter visualizer + buttons (hidden until Noise/SAMPLE)
+    addChildComponent (noiseSampleFilterVis);   // default accent = noise red
+    for (auto* btn : { &noiseSamplePrevBtn, &noiseSampleNextBtn })
+    {
+        btn->setColour (juce::TextButton::buttonColourId,   juce::Colours::transparentBlack);
+        btn->setColour (juce::TextButton::buttonOnColourId,  juce::Colours::transparentBlack);
+        btn->setColour (juce::TextButton::textColourOffId,   juce::Colours::white.withAlpha (0.7f));
+        btn->setColour (juce::TextButton::textColourOnId,    juce::Colours::white);
+        btn->setColour (juce::ComboBox::outlineColourId,     juce::Colours::transparentBlack);
+        addChildComponent (*btn);
+    }
+    noiseSamplePrevBtn.onClick = [this] { /* placeholder: previous noise sample */ };
+    noiseSampleNextBtn.onClick = [this] { /* placeholder: next noise sample */ };
+
     // ── Transient filter visualizer (hidden until Transient tab) ─────────
     transientFilterVis.setAccentColour (0xffffaa33);   // transient orange
     addChildComponent (transientFilterVis);
@@ -228,6 +242,22 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     }
     transientPrevBtn.onClick = [this] { /* placeholder: previous sample */ };
     transientNextBtn.onClick = [this] { /* placeholder: next sample */ };
+
+    // ── Room filter visualizer + IR browser buttons ─────────────────────
+    roomFilterVis.setAccentColour (0xffaa55ff);   // room purple
+    addChildComponent (roomFilterVis);
+
+    for (auto* btn : { &roomPrevBtn, &roomNextBtn })
+    {
+        btn->setColour (juce::TextButton::buttonColourId,   juce::Colours::transparentBlack);
+        btn->setColour (juce::TextButton::buttonOnColourId,  juce::Colours::transparentBlack);
+        btn->setColour (juce::TextButton::textColourOffId,   juce::Colours::white.withAlpha (0.7f));
+        btn->setColour (juce::TextButton::textColourOnId,    juce::Colours::white);
+        btn->setColour (juce::ComboBox::outlineColourId,     juce::Colours::transparentBlack);
+        addChildComponent (*btn);
+    }
+    roomPrevBtn.onClick = [this] { /* placeholder: previous IR */ };
+    roomNextBtn.onClick = [this] { /* placeholder: next IR */ };
 
     // ── Sauce knob (visual only, no APVTS) ────────────────────────────────
     sauceKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
@@ -336,12 +366,27 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     if (showNoise)
         noiseFilterVis.setBounds (noiseFilterBounds);
 
+    // Noise sample controls: visible only in Noise tab + SAMPLE mode
+    const bool noiseSample = showNoise && noiseSrc == NoiseSrc::Sample;
+    noiseSampleFilterVis.setVisible (noiseSample);
+    noiseSamplePrevBtn.setVisible (noiseSample);
+    noiseSampleNextBtn.setVisible (noiseSample);
+    if (noiseSample)
+        noiseSampleFilterVis.setBounds (noiseSampleFilterBounds);
+
     // Transient filter visualizer + sample buttons: visible only in Transient tab
     transientFilterVis.setVisible (showTransient);
     transientPrevBtn.setVisible (showTransient);
     transientNextBtn.setVisible (showTransient);
     if (showTransient)
         transientFilterVis.setBounds (transientFilterBounds);
+
+    // Room filter visualizer + IR buttons: visible only in Room tab
+    roomFilterVis.setVisible (showRoom);
+    roomPrevBtn.setVisible (showRoom);
+    roomNextBtn.setVisible (showRoom);
+    if (showRoom)
+        roomFilterVis.setBounds (roomFilterBounds);
 
     // Sauce knob: visible only on Sauce tab
     const bool showSauce = (tab == Tab::Sauce);
@@ -533,6 +578,16 @@ void SnareMakerAudioProcessorEditor::resized()
         const int filtH = envEditorFullBounds.getBottom() - innerPad - filtY;
 
         noiseFilterBounds = { selX, filtY, selW, filtH / 2 };
+
+        // Noise SAMPLE panel: same side panel geometry, different vertical layout
+        const int smpSelY  = selY + selH + secGap;
+        const int smpKnobY = smpSelY + selH + secGap + 4;
+        const int smpRow2Y = smpKnobY + knobSize + labelH + secGap;
+        const int smpFiltY = smpRow2Y + knobSize + labelH + secGap + 4;
+        const int smpFiltH = envEditorFullBounds.getBottom() - innerPad - smpFiltY;
+
+        noiseSampleBtnBounds    = { selX, smpSelY, selW, selH };
+        noiseSampleFilterBounds = { selX, smpFiltY, selW, smpFiltH };
     }
 
     // ── Transient filter visualizer + LOAD SAMPLE bounds ─────────────────────
@@ -557,6 +612,32 @@ void SnareMakerAudioProcessorEditor::resized()
         const int filtH = envEditorFullBounds.getBottom() - innerPad - filtY;
 
         transientFilterBounds = { selX, filtY, selW, filtH / 2 };
+    }
+
+    // ── Room control panel bounds ────────────────────────────────────────────
+    {
+        const int waveW = envEditorFullBounds.getWidth() * 4 / 5 - 30;
+        const int sideX = envEditorFullBounds.getX() + waveW + kUISpacing;
+        const int sideW = outputZoneBounds.getX() - sideX - kUISpacing;
+
+        constexpr int innerPad = 6;
+        constexpr int selH     = 28;
+        constexpr int secGap   = 6;
+        constexpr int knobSize = 40;
+        constexpr int labelH   = 14;
+
+        const int selX  = sideX + innerPad;
+        const int selY  = envEditorFullBounds.getY() + innerPad;
+        const int selW  = sideW - innerPad * 2;
+
+        roomIrBtnBounds = { selX, selY, selW, selH };
+
+        const int knobY  = selY + selH + secGap + 4;
+        const int row2Y  = knobY + knobSize + labelH + secGap;
+        const int filtY  = row2Y + knobSize + labelH + secGap + 4;
+        const int filtH  = envEditorFullBounds.getBottom() - innerPad - filtY;
+
+        roomFilterBounds = { selX, filtY, selW, filtH };
     }
 }
 
@@ -654,7 +735,12 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
         && noiseSrcBounds.contains (e.getPosition()) && !e.mods.isPopupMenu())
     {
         noiseSrc = (noiseSrc == NoiseSrc::Gen) ? NoiseSrc::Sample : NoiseSrc::Gen;
-        noiseFilterVis.setVisible (noiseSrc == NoiseSrc::Gen);
+        const bool genNow = (noiseSrc == NoiseSrc::Gen);
+        noiseFilterVis.setVisible (genNow);
+        noiseSampleFilterVis.setVisible (!genNow);
+        noiseSampleFilterVis.setBounds (noiseSampleFilterBounds);
+        noiseSamplePrevBtn.setVisible (!genNow);
+        noiseSampleNextBtn.setVisible (!genNow);
         repaint();
         return;
     }
@@ -680,6 +766,28 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
         return;
     }
 
+    // ── Noise sample browser clicks ─────────────────────────────────────
+    if (activeTab == Tab::Noise && noiseSrc == NoiseSrc::Sample && !e.mods.isPopupMenu())
+    {
+        if (!noiseSampleDropBounds.isEmpty()
+            && noiseSampleDropBounds.contains (e.getPosition()))
+        {
+            juce::PopupMenu menu;
+            menu.addItem (1, "White");
+            menu.addItem (2, "Analog");
+            menu.addItem (3, "Tape");
+            menu.addItem (4, "Dust");
+            menu.addItem (5, "Vinyl");
+            menu.addItem (6, "Static");
+            menu.addItem (7, "Perc Noise");
+            menu.addItem (8, "User");
+            menu.showMenuAsync (juce::PopupMenu::Options()
+                .withTargetScreenArea (localAreaToGlobal (noiseSampleBtnBounds))
+                .withMinimumWidth (noiseSampleBtnBounds.getWidth()));
+            return;
+        }
+    }
+
     // ── Transient sample browser clicks ─────────────────────────────────
     if (activeTab == Tab::Transient && !e.mods.isPopupMenu())
     {
@@ -694,6 +802,26 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
             menu.showMenuAsync (juce::PopupMenu::Options()
                 .withTargetScreenArea (localAreaToGlobal (transientSampleBtnBounds))
                 .withMinimumWidth (transientSampleBtnBounds.getWidth()));
+            return;
+        }
+    }
+
+    // ── Room IR browser clicks ───────────────────────────────────────────
+    if (activeTab == Tab::Room && !e.mods.isPopupMenu())
+    {
+        if (!roomDropBounds.isEmpty()
+            && roomDropBounds.contains (e.getPosition()))
+        {
+            juce::PopupMenu menu;
+            menu.addItem (1, "Small Room");
+            menu.addItem (2, "Studio");
+            menu.addItem (3, "Plate");
+            menu.addItem (4, "Chamber");
+            menu.addItem (5, "Hall");
+            menu.addItem (6, "Drum Room");
+            menu.showMenuAsync (juce::PopupMenu::Options()
+                .withTargetScreenArea (localAreaToGlobal (roomIrBtnBounds))
+                .withMinimumWidth (roomIrBtnBounds.getWidth()));
             return;
         }
     }
@@ -1057,6 +1185,95 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             // Filter section: handled by transientFilterVis component
         }
 
+        // Room tab: IR loader + SIZE/DECAY/PRE-DELAY/WIDTH knobs + filter
+        if (activeTab == Tab::Room)
+        {
+            constexpr int innerPad = 6;
+            constexpr int selH     = 28;
+            constexpr int secGap   = 6;
+            constexpr int knobSize = 40;
+            constexpr int labelH   = 14;
+            const int selX2 = sideX + innerPad;
+            const int selY2 = envEditorFullBounds.getY() + innerPad;
+            const int selW2 = sideW - innerPad * 2;
+
+            // ── LOAD IR inline browser: [ < ] LOAD IR ▼ [ > ]
+            roomIrBtnBounds = { selX2, selY2, selW2, selH };
+
+            g.setColour (juce::Colour (0xff2A3038));
+            g.fillRoundedRectangle ((float) selX2, (float) selY2,
+                                    (float) selW2, (float) selH, 8.0f);
+
+            constexpr int arrowW = 22;
+            const int prevX = selX2;
+            const int nextX = selX2 + selW2 - arrowW;
+            const int midX  = prevX + arrowW;
+            const int midW  = selW2 - arrowW * 2;
+
+            roomDropBounds = { midX, selY2, midW, selH };
+
+            // Position button components
+            roomPrevBtn.setBounds (prevX, selY2, arrowW, selH);
+            roomNextBtn.setBounds (nextX, selY2, arrowW, selH);
+
+            // Divider lines
+            g.setColour (juce::Colour (0xff363E4A));
+            g.fillRect ((float) (prevX + arrowW), (float) selY2 + 5.0f,
+                        1.0f, (float) selH - 10.0f);
+            g.fillRect ((float) nextX, (float) selY2 + 5.0f,
+                        1.0f, (float) selH - 10.0f);
+
+            // Centre label
+            g.setColour (juce::Colours::white);
+            g.setFont (lnf.interMediumFont (10.0f));
+            g.drawText ("LOAD IR", midX, selY2, midW - 14, selH,
+                        juce::Justification::centred, false);
+
+            // Dropdown triangle
+            {
+                const float triX = (float) (midX + midW) - 16.0f;
+                const float triY = (float) selY2 + (float) selH * 0.5f - 2.0f;
+                juce::Path tri;
+                tri.addTriangle (triX, triY, triX + 7.0f, triY, triX + 3.5f, triY + 5.0f);
+                g.setColour (juce::Colours::white.withAlpha (0.7f));
+                g.fillPath (tri);
+            }
+
+            // ── 2×2 knob grid: SIZE / DECAY / PRE-DELAY / WIDTH ─────────
+            const int knobY  = selY2 + selH + secGap + 4;
+            const int knobArea = selW2 / 2;
+            const int k1X = selX2 + knobArea / 2 - knobSize / 2;
+            const int k2X = selX2 + knobArea + knobArea / 2 - knobSize / 2;
+            const int row2Y = knobY + knobSize + labelH + secGap;
+
+            auto drawKnob = [&] (int kx, int ky, const char* label)
+            {
+                g.setColour (juce::Colour (0xff2A3038));
+                g.fillEllipse ((float) kx, (float) ky,
+                               (float) knobSize, (float) knobSize);
+                g.setColour (juce::Colour (0xff363E4A));
+                g.drawEllipse ((float) kx + 0.5f, (float) ky + 0.5f,
+                               (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
+                g.setColour (juce::Colours::white.withAlpha (0.6f));
+                {
+                    const float kcx = (float) kx + (float) knobSize * 0.5f;
+                    g.drawLine (kcx, (float) ky + (float) knobSize * 0.5f,
+                                kcx, (float) ky + 4.0f, 1.5f);
+                }
+                g.setColour (kTextMuted);
+                g.setFont (lnf.interRegularFont (9.0f));
+                g.drawText (label, kx - 10, ky + knobSize + 2,
+                            knobSize + 20, labelH, juce::Justification::centred, false);
+            };
+
+            drawKnob (k1X, knobY, "Size");
+            drawKnob (k2X, knobY, "Decay");
+            drawKnob (k1X, row2Y, "Pre-Delay");
+            drawKnob (k2X, row2Y, "Width");
+
+            // Filter section: handled by roomFilterVis component
+        }
+
         // Noise tab: compact GEN / SAMPLE selector at top of side panel
         if (activeTab == Tab::Noise)
         {
@@ -1202,24 +1419,89 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             }
             else
             {
-                // ── SAMPLE placeholder ──────────────────────────────────
+                // ── SAMPLE panel ─────────────────────────────────────────
                 noiseTypeBounds = {};
 
-                const int placY = selY + selH + secGap;
-                const int placH = envEditorFullBounds.getBottom() - innerPad - placY;
+                constexpr int smpSelH   = 28;
+                constexpr int knobSize  = 40;
+                constexpr int labelH    = 14;
 
-                g.setColour (juce::Colour (0xff181D24));
-                g.fillRoundedRectangle ((float) selX, (float) placY,
-                                        (float) selW, (float) placH, 8.0f);
+                const int smpY = selY + selH + secGap;
 
-                g.setColour (kNoiseRed.withAlpha (0.35f));
-                g.setFont (lnf.interMediumFont (11.0f));
-                g.drawText ("Sample Controls", selX, placY, selW, placH / 2,
-                            juce::Justification::centredBottom, false);
-                g.setColour (juce::Colour (0xff555566));
-                g.setFont (lnf.interRegularFont (9.0f));
-                g.drawText ("(Coming Soon)", selX, placY + placH / 2, selW, placH / 2,
-                            juce::Justification::centredTop, false);
+                // ── LOAD SAMPLE inline browser ───────────────────────────
+                noiseSampleBtnBounds = { selX, smpY, selW, smpSelH };
+
+                g.setColour (juce::Colour (0xff2A3038));
+                g.fillRoundedRectangle ((float) selX, (float) smpY,
+                                        (float) selW, (float) smpSelH, 8.0f);
+
+                constexpr int arrowW = 22;
+                const int prevX2 = selX;
+                const int nextX2 = selX + selW - arrowW;
+                const int midX2  = prevX2 + arrowW;
+                const int midW2  = selW - arrowW * 2;
+
+                noiseSampleDropBounds = { midX2, smpY, midW2, smpSelH };
+
+                noiseSamplePrevBtn.setBounds (prevX2, smpY, arrowW, smpSelH);
+                noiseSampleNextBtn.setBounds (nextX2, smpY, arrowW, smpSelH);
+
+                // Divider lines
+                g.setColour (juce::Colour (0xff363E4A));
+                g.fillRect ((float) (prevX2 + arrowW), (float) smpY + 5.0f,
+                            1.0f, (float) smpSelH - 10.0f);
+                g.fillRect ((float) nextX2, (float) smpY + 5.0f,
+                            1.0f, (float) smpSelH - 10.0f);
+
+                // Centre label
+                g.setColour (juce::Colours::white);
+                g.setFont (lnf.interMediumFont (10.0f));
+                g.drawText ("LOAD SAMPLE", midX2, smpY, midW2 - 14, smpSelH,
+                            juce::Justification::centred, false);
+
+                // Dropdown triangle
+                {
+                    const float triX = (float) (midX2 + midW2) - 16.0f;
+                    const float triY = (float) smpY + (float) smpSelH * 0.5f - 2.0f;
+                    juce::Path tri;
+                    tri.addTriangle (triX, triY, triX + 7.0f, triY, triX + 3.5f, triY + 5.0f);
+                    g.setColour (juce::Colours::white.withAlpha (0.7f));
+                    g.fillPath (tri);
+                }
+
+                // ── 2×2 knob grid: START / LENGTH / PITCH / WIDTH ───────
+                const int knobY2  = smpY + smpSelH + secGap + 4;
+                const int knobArea = selW / 2;
+                const int k1X = selX + knobArea / 2 - knobSize / 2;
+                const int k2X = selX + knobArea + knobArea / 2 - knobSize / 2;
+                const int row2Y = knobY2 + knobSize + labelH + secGap;
+
+                auto drawKnob = [&] (int kx, int ky, const char* label)
+                {
+                    g.setColour (juce::Colour (0xff2A3038));
+                    g.fillEllipse ((float) kx, (float) ky,
+                                   (float) knobSize, (float) knobSize);
+                    g.setColour (juce::Colour (0xff363E4A));
+                    g.drawEllipse ((float) kx + 0.5f, (float) ky + 0.5f,
+                                   (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
+                    g.setColour (juce::Colours::white.withAlpha (0.6f));
+                    {
+                        const float kcx = (float) kx + (float) knobSize * 0.5f;
+                        g.drawLine (kcx, (float) ky + (float) knobSize * 0.5f,
+                                    kcx, (float) ky + 4.0f, 1.5f);
+                    }
+                    g.setColour (kTextMuted);
+                    g.setFont (lnf.interRegularFont (9.0f));
+                    g.drawText (label, kx - 10, ky + knobSize + 2,
+                                knobSize + 20, labelH, juce::Justification::centred, false);
+                };
+
+                drawKnob (k1X, knobY2, "Start");
+                drawKnob (k2X, knobY2, "Length");
+                drawKnob (k1X, row2Y,  "Pitch");
+                drawKnob (k2X, row2Y,  "Width");
+
+                // Filter section: handled by noiseSampleFilterVis component
             }
         }
     }
