@@ -362,8 +362,8 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const double freqRatio = std::pow (2.0, (double) pitchAmount / 12.0);
 
     // Voice duration: used to normalise amp envelope lookups.
-    // Body envelope duration = pitchDecay parameter (same as pitch env).
-    const double bodyEnvDurSec = std::max (0.001, (double) pitchDecayMs * 0.001);
+    // 2× pitchDecay so the envelope spans a longer playback window.
+    const double bodyEnvDurSec = std::max (0.001, (double) pitchDecayMs * 0.001) * 2.0;
     const double bodyEnvDurSamples = bodyEnvDurSec * sr;
 
     // Noise uses the same voice duration for its amp envelope normalisation.

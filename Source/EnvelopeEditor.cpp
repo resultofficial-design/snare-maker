@@ -452,9 +452,9 @@ void EnvelopeEditor::regenerateWaveform()
     // Resonant: medium decay, sits between body and noise
     const double resTauSec    = bodyTauSec * 0.5;
 
-    // Duration: longest of body or noise decay x 5, clamped
+    // Duration: longest of body or noise decay x 10, clamped (2× previous range)
     const double longestTau = std::max (bodyTauSec, noiseTauSec);
-    waveformDuration = (float) juce::jlimit (0.05, 1.0, longestTau * 5.0);
+    waveformDuration = (float) juce::jlimit (0.05, 2.0, longestTau * 10.0);
 
     const double dt = (double) waveformDuration / (double) kWaveformSamples;
 
