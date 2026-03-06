@@ -72,6 +72,9 @@ private:
                                         bool isSeparator, int standardMenuItemHeight,
                                         int& idealWidth, int& idealHeight) override;
 
+        juce::Component* getParentComponentForMenuOptions (const juce::PopupMenu::Options&) override;
+        void preparePopupMenuWindow (juce::Component& window) override;
+
         // Helpers for paint functions
         juce::Font interRegularFont (float height) const;
         juce::Font interMediumFont  (float height) const;

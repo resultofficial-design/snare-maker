@@ -200,25 +200,24 @@ void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawRotarySlider (
 void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawPopupMenuBackground (
     juce::Graphics& g, int width, int height)
 {
-    const float w = (float) width;
-    const float h = (float) height;
-    constexpr float r = 8.0f;
-
-    // Build path: flat top corners, rounded bottom corners
-    juce::Path bg;
-    bg.startNewSubPath (0.0f, 0.0f);
-    bg.lineTo (w, 0.0f);
-    bg.lineTo (w, h - r);
-    bg.quadraticTo (w, h, w - r, h);
-    bg.lineTo (r, h);
-    bg.quadraticTo (0.0f, h, 0.0f, h - r);
-    bg.closeSubPath();
-
-    // Clear entire popup window to transparent (eliminates white corner artifacts)
     g.fillAll (juce::Colours::transparentBlack);
+
+    juce::Path bg;
+    bg.addRoundedRectangle (0.0f, 0.0f, (float) width, (float) height, 8.0f);
 
     g.setColour (findColour (juce::PopupMenu::backgroundColourId));
     g.fillPath (bg);
+}
+
+juce::Component* SnareMakerAudioProcessorEditor::SnareLookAndFeel::getParentComponentForMenuOptions (
+    const juce::PopupMenu::Options&)
+{
+    return nullptr;
+}
+
+void SnareMakerAudioProcessorEditor::SnareLookAndFeel::preparePopupMenuWindow (juce::Component& window)
+{
+    window.setOpaque (false);
 }
 
 void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawPopupMenuItem (
