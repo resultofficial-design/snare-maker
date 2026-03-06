@@ -890,20 +890,53 @@ void EnvelopeEditor::mouseDoubleClick (const juce::MouseEvent& e)
 
     const auto norm = fromPixel (e.position);
 
+    // Capture the original segment's curve before insertion splits it.
+    // After addPoint, the new point sits at idx, the preceding point (idx-1)
+    // keeps its old curve for segment idx-1 → idx, and the new point's curve
+    // (default 0) controls segment idx → idx+1.
+    //
+    // Smart split: the longer sub-segment inherits the original curvature,
+    // the shorter one becomes straight.
+
+    auto splitCurve = [&] (int idx)
+    {
+        if (idx <= 0 || idx >= envelope->getNumPoints() - 1)
+            return;
+
+        const float prevTime = envelope->points[(size_t) (idx - 1)].time;
+        const float newTime  = envelope->points[(size_t) idx].time;
+        const float nextTime = envelope->points[(size_t) (idx + 1)].time;
+
+        const float distLeft  = newTime - prevTime;   // A → NewPoint
+        const float distRight = nextTime - newTime;    // NewPoint → B
+
+        // Original curve is still on the preceding point (idx-1)
+        const float origCurve = envelope->points[(size_t) (idx - 1)].curve;
+
+        if (distLeft >= distRight)
+        {
+            // Left segment is longer: it keeps the curve
+            envelope->points[(size_t) (idx - 1)].curve = origCurve;
+            envelope->points[(size_t) idx].curve        = 0.0f;
+        }
+        else
+        {
+            // Right segment is longer: it gets the curve
+            envelope->points[(size_t) (idx - 1)].curve = 0.0f;
+            envelope->points[(size_t) idx].curve        = origCurve;
+        }
+    };
+
     if (envelopeLock != nullptr)
     {
         juce::SpinLock::ScopedLockType lock (*envelopeLock);
         const int idx = envelope->addPoint (norm.x, norm.y);
-        // Ensure both new segments are straight: new point (curve=0 by default)
-        // and the preceding point whose curve previously shaped the old segment.
-        if (idx > 0)
-            envelope->points[(size_t) (idx - 1)].curve = 0.0f;
+        splitCurve (idx);
     }
     else
     {
         const int idx = envelope->addPoint (norm.x, norm.y);
-        if (idx > 0)
-            envelope->points[(size_t) (idx - 1)].curve = 0.0f;
+        splitCurve (idx);
     }
 
     regenerateWaveform();
