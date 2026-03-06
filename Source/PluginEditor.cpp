@@ -845,6 +845,12 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
         if (!noiseSampleDropBounds.isEmpty()
             && noiseSampleDropBounds.contains (e.getPosition()))
         {
+            if (openDropdown == OpenDropdown::NoiseSample)
+            {
+                openDropdown = OpenDropdown::None;
+                repaint();
+                return;
+            }
             juce::PopupMenu menu;
             menu.addItem (1, "White");
             menu.addItem (2, "Analog");
@@ -873,6 +879,12 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
         if (!transientDropBounds.isEmpty()
             && transientDropBounds.contains (e.getPosition()))
         {
+            if (openDropdown == OpenDropdown::TransientSample)
+            {
+                openDropdown = OpenDropdown::None;
+                repaint();
+                return;
+            }
             juce::PopupMenu menu;
             menu.addItem (1, "Kick");
             menu.addItem (2, "Snare");
@@ -897,6 +909,12 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
         if (!roomDropBounds.isEmpty()
             && roomDropBounds.contains (e.getPosition()))
         {
+            if (openDropdown == OpenDropdown::RoomIr)
+            {
+                openDropdown = OpenDropdown::None;
+                repaint();
+                return;
+            }
             juce::PopupMenu menu;
             menu.addItem (1, "Small Room");
             menu.addItem (2, "Studio");
