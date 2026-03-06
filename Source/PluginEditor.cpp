@@ -282,6 +282,20 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
                                         audioProcessor.waveformDisplayMode);
     addAndMakeVisible (envelopeEditor);
 
+    envelopeEditor.onSampleDropped = [this] (const juce::String& /*filePath*/)
+    {
+        if (activeTab == Tab::Noise && noiseSrc == NoiseSrc::Gen)
+        {
+            noiseSrc = NoiseSrc::Sample;
+            noiseFilterVis.setVisible (false);
+            noiseSampleFilterVis.setVisible (true);
+            noiseSampleFilterVis.setBounds (noiseSampleFilterBounds);
+            noiseSamplePrevBtn.setVisible (true);
+            noiseSampleNextBtn.setVisible (true);
+            repaint();
+        }
+    };
+
     // ── Noise filter visualizer (hidden until Noise/GEN) ──────────────────
     addChildComponent (noiseFilterVis);
 
