@@ -203,6 +203,12 @@ private:
     OutputValueBubble phaseBubble;
     void updatePhaseBubble();
 
+    // ── Per-layer volume knob (swapped per tab, Phase 9) ──────────────────
+    juce::Slider layerVolumeKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> layerVolumeAttachment;
+    OutputValueBubble volumeBubble;
+    void updateVolumeBubble();
+
     // ── Output fader ─────────────────────────────────────────────────────────
     juce::Slider outputSlider;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputAttachment;

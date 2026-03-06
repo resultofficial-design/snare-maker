@@ -438,6 +438,19 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     sauceKnob.setColour (juce::Slider::rotarySliderFillColourId, kSaucePink);
     addChildComponent (sauceKnob);   // hidden until Sauce tab
 
+    // ── Per-layer volume knob (hidden until a layer tab is active) ──────────
+    layerVolumeKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    layerVolumeKnob.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    layerVolumeKnob.setRange (0.0, 1.0, 0.001);
+    layerVolumeKnob.setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xff888899));
+    addChildComponent (layerVolumeKnob);
+
+    volumeBubble.typeface = lnf.interRegular;
+    addChildComponent (volumeBubble);
+    layerVolumeKnob.onDragStart   = [this] { volumeBubble.setVisible (true);  updateVolumeBubble(); };
+    layerVolumeKnob.onDragEnd     = [this] { volumeBubble.setVisible (false); };
+    layerVolumeKnob.onValueChange = [this] { if (volumeBubble.isVisible()) updateVolumeBubble(); };
+
     // ── Phase offset fader (BODY tab, inside envelope container left side) ──
     phaseOffsetSlider.setSliderStyle (juce::Slider::LinearVertical);
     phaseOffsetSlider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
@@ -623,6 +636,36 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     if (showResonant)
         resonantFilterVis.setBounds (resonantFilterBounds);
 
+    // Per-layer volume knob: visible for all layer tabs, hidden for Sauce
+    {
+        const bool showVolume = (showTransient || showBody || showResonant || showNoise || showRoom);
+        layerVolumeKnob.setVisible (showVolume);
+        volumeBubble.setVisible (false);
+
+        if (showVolume)
+        {
+            // Destroy old attachment before creating new one
+            layerVolumeAttachment.reset();
+
+            // Map tab to APVTS parameter ID
+            const char* paramId = "bodyLevel";
+            if      (showTransient) paramId = "transientLevel";
+            else if (showBody)      paramId = "bodyLevel";
+            else if (showResonant)  paramId = "resonantLevel";
+            else if (showNoise)     paramId = "noiseLevel";
+            else if (showRoom)      paramId = "roomLevel";
+
+            layerVolumeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+                audioProcessor.apvts, paramId, layerVolumeKnob);
+
+            // Position: right side of envelope editor, below SIMPLE/TRUE toggle
+            constexpr int knobSize = 40;
+            const int knobX = envEditorFullBounds.getRight() - kUISpacing - knobSize - 4;
+            const int knobY = envEditorFullBounds.getY() + 50;
+            layerVolumeKnob.setBounds (knobX, knobY, knobSize, knobSize);
+        }
+    }
+
     // Sauce knob: visible only on Sauce tab
     const bool showSauce = (tab == Tab::Sauce);
     sauceKnob.setVisible (showSauce);
@@ -732,6 +775,19 @@ void SnareMakerAudioProcessorEditor::updatePhaseBubble()
                            phaseOffsetSlider.getY() + (int) thumbY - bubbleH / 2,
                            bubbleW, bubbleH);
     phaseBubble.repaint();
+}
+
+void SnareMakerAudioProcessorEditor::updateVolumeBubble()
+{
+    const int pct = (int) (layerVolumeKnob.getValue() * 100.0 + 0.5);
+    volumeBubble.text = juce::String (pct) + "%";
+
+    constexpr int bubbleW = 42, bubbleH = 22, gap = 4;
+    const int knobCY = layerVolumeKnob.getY() + layerVolumeKnob.getHeight() / 2;
+    volumeBubble.setBounds (layerVolumeKnob.getX() - bubbleW - gap,
+                            knobCY - bubbleH / 2,
+                            bubbleW, bubbleH);
+    volumeBubble.repaint();
 }
 
 // =============================================================================

@@ -25,6 +25,12 @@ SnareMakerAudioProcessor::SnareMakerAudioProcessor()
     pNoiseFiltQ    = apvts.getRawParameterValue ("noiseFiltQ");
     pNoiseBright   = apvts.getRawParameterValue ("noiseBright");
 
+    // Per-layer volume (Phase 9)
+    pTransientLevel = apvts.getRawParameterValue ("transientLevel");
+    pBodyLevel      = apvts.getRawParameterValue ("bodyLevel");
+    pResonantLevel  = apvts.getRawParameterValue ("resonantLevel");
+    pRoomLevel      = apvts.getRawParameterValue ("roomLevel");
+
     // Output
     pOutputGain    = apvts.getRawParameterValue ("outputGain");
 
@@ -130,6 +136,28 @@ SnareMakerAudioProcessor::createParameterLayout()
         PID { "noiseBright", 1 }, "Noise Brightness",
         juce::NormalisableRange<float> (-12.0f, 12.0f, 0.1f),
         0.0f, Attr{}.withLabel ("dB")));
+
+    // ── Per-layer volume knobs (Phase 9) ──────────────────────────────────
+
+    params.push_back (std::make_unique<APF> (
+        PID { "transientLevel", 1 }, "Transient Level",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        1.0f));
+
+    params.push_back (std::make_unique<APF> (
+        PID { "bodyLevel", 1 }, "Body Level",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        1.0f));
+
+    params.push_back (std::make_unique<APF> (
+        PID { "resonantLevel", 1 }, "Resonant Level",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        1.0f));
+
+    params.push_back (std::make_unique<APF> (
+        PID { "roomLevel", 1 }, "Room Level",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        1.0f));
 
     // ── Master output ─────────────────────────────────────────────────────
 
@@ -355,6 +383,13 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const float noiseFiltQ      = pNoiseFiltQ->load();
     const float noiseBrightDb   = pNoiseBright->load();
 
+    // Per-layer volume knobs (Phase 9)
+    const float transientLevel  = pTransientLevel->load();
+    const float bodyLevel       = pBodyLevel->load();
+    const float resonantLevel   = pResonantLevel->load();
+    const float roomLevel       = pRoomLevel->load();
+    (void) roomLevel;   // Room audio path not yet implemented; parameter ready for future use
+
     const float outputGainDb    = pOutputGain->load();
 
     // ── Derived time constants ─────────────────────────────────────────────
@@ -430,7 +465,7 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             {
                 const float tNorm = (float) transientPlayPos / (float) transientLen;
                 const float ampEnv = (float) transientAmpEnvelope.evaluate ((double) tNorm);
-                mix += transientData[transientPlayPos] * ampEnv;
+                mix += transientData[transientPlayPos] * ampEnv * transientLevel;
             }
             if (transientPlaying)
             {
@@ -473,7 +508,7 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             }
 
             if (layerBody)
-                mix += bodyOut;
+                mix += bodyOut * bodyLevel;
 
             // Body declick tail
             if (declickActive)
@@ -488,7 +523,7 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             {
                 const float tNorm = (float) resonantPlayPos / (float) resonantLen;
                 const float ampEnv = (float) resonantAmpEnvelope.evaluate ((double) tNorm);
-                mix += resonantData[resonantPlayPos] * ampEnv;
+                mix += resonantData[resonantPlayPos] * ampEnv * resonantLevel;
             }
             if (resonantPlaying)
             {

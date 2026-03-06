@@ -39,6 +39,12 @@ void EnvelopeEditor::connectToParameters (juce::AudioProcessorValueTreeState& ap
     pNoiseDecay    = apvts.getRawParameterValue ("noiseDecay");
     pPhaseOffset   = apvts.getRawParameterValue ("phaseOffset");
 
+    // Per-layer volume pointers for waveform scaling
+    layerVolumes[static_cast<int> (WaveLayer::Transient)] = apvts.getRawParameterValue ("transientLevel");
+    layerVolumes[static_cast<int> (WaveLayer::Body)]      = apvts.getRawParameterValue ("bodyLevel");
+    layerVolumes[static_cast<int> (WaveLayer::Resonant)]  = apvts.getRawParameterValue ("resonantLevel");
+    layerVolumes[static_cast<int> (WaveLayer::Noise)]     = apvts.getRawParameterValue ("noiseLevel");
+
     // Wire SIMPLE/TRUE toggle to global display mode
     modeToggle.setMode (displayMode.load() == 0
                         ? EnvelopeModeToggle::DisplayMode::Simple
@@ -206,13 +212,23 @@ void EnvelopeEditor::timerCallback()
 
         const uint64_t currentHash = computePointsHash();
 
+        // Check per-layer volume changes
+        bool volChanged = false;
+        for (int l = 0; l < kNumLayers; ++l)
+        {
+            const float v = (layerVolumes[l] != nullptr) ? layerVolumes[l]->load() : 1.0f;
+            if (std::abs (v - lastWfVolumes[l]) > 0.005f)
+                volChanged = true;
+        }
+
         if (std::abs (bf - lastWfBodyFreq)    > 0.1f   ||
             std::abs (pa - lastWfPitchAmount) > 0.05f  ||
             std::abs (pd - lastWfPitchDecay)  > 0.1f   ||
             std::abs (nl - lastWfNoiseLevel)  > 0.005f ||
             std::abs (nd - lastWfNoiseDecay)  > 0.1f   ||
             std::abs (po - lastWfPhaseOffset) > 0.1f   ||
-            currentHash != lastPointsHash)
+            currentHash != lastPointsHash ||
+            volChanged)
         {
             regenerateWaveform();
             needsRepaint = true;
@@ -479,6 +495,14 @@ void EnvelopeEditor::regenerateWaveform()
     // Start phase matches engine: phase = phaseOffsetDeg / 360
     double phase = (double) phaseOffDeg / 360.0;
 
+    // Read per-layer volume levels for waveform scaling
+    float layerVol[kNumLayers];
+    for (int l = 0; l < kNumLayers; ++l)
+    {
+        layerVol[l] = (layerVolumes[l] != nullptr) ? layerVolumes[l]->load() : 1.0f;
+        lastWfVolumes[l] = layerVol[l];
+    }
+
     for (int i = 0; i < kWaveformSamples; ++i)
     {
         const double t = (double) i * dt;
@@ -504,7 +528,7 @@ void EnvelopeEditor::regenerateWaveform()
             if (ampEnvForLayer[static_cast<int> (WaveLayer::Transient)] != nullptr)
                 transAmp = ampEnvForLayer[static_cast<int> (WaveLayer::Transient)]->evaluate (ampNorm);
             layerBuffers[static_cast<int> (WaveLayer::Transient)][(size_t) i]
-                = (float) (sinVal * transAmp);
+                = (float) (sinVal * transAmp) * layerVol[static_cast<int> (WaveLayer::Transient)];
         }
 
         // ── Body: sine with pitch envelope × body amp envelope ──────────────
@@ -514,7 +538,7 @@ void EnvelopeEditor::regenerateWaveform()
             if (ampEnvForLayer[static_cast<int> (WaveLayer::Body)] != nullptr)
                 bodyAmpVal = ampEnvForLayer[static_cast<int> (WaveLayer::Body)]->evaluate (ampNorm);
             layerBuffers[static_cast<int> (WaveLayer::Body)][(size_t) i]
-                = (float) (sinVal * bodyAmpVal);
+                = (float) (sinVal * bodyAmpVal) * layerVol[static_cast<int> (WaveLayer::Body)];
         }
 
         // ── Resonant: sine × resonant amp envelope ─────────────────────────
@@ -524,7 +548,7 @@ void EnvelopeEditor::regenerateWaveform()
             if (ampEnvForLayer[static_cast<int> (WaveLayer::Resonant)] != nullptr)
                 resAmpVal = ampEnvForLayer[static_cast<int> (WaveLayer::Resonant)]->evaluate (ampNorm);
             layerBuffers[static_cast<int> (WaveLayer::Resonant)][(size_t) i]
-                = (float) (sinVal * resAmpVal);
+                = (float) (sinVal * resAmpVal) * layerVol[static_cast<int> (WaveLayer::Resonant)];
         }
 
         // ── Noise: white noise × noise amp envelope ─────────────────────────
@@ -534,7 +558,7 @@ void EnvelopeEditor::regenerateWaveform()
             if (ampEnvForLayer[static_cast<int> (WaveLayer::Noise)] != nullptr)
                 noiseAmpVal = ampEnvForLayer[static_cast<int> (WaveLayer::Noise)]->evaluate (ampNorm) * (double) noiseLevel;
             layerBuffers[static_cast<int> (WaveLayer::Noise)][(size_t) i]
-                = (float) ((double) detNoise (i) * noiseAmpVal);
+                = (float) ((double) detNoise (i) * noiseAmpVal) * layerVol[static_cast<int> (WaveLayer::Noise)];
         }
     }
 
@@ -562,6 +586,7 @@ void EnvelopeEditor::regenerateWaveform()
         // For sample layers, apply amp envelope scaling during path building
         // (the raw sample buffer is preserved; synth layers already have envelope baked in)
         const bool envScale = layerUsesSample[layer] && ampEnvForLayer[layer] != nullptr;
+        const float volScale = layerVol[layer];
 
         // Build top edge (max values) left to right
         std::vector<float> topY (cols), botY (cols);
@@ -580,6 +605,12 @@ void EnvelopeEditor::regenerateWaveform()
                 lo *= env0;
                 hi *= env0;
             }
+            // Apply volume scaling to sample layers (synth layers already have it baked in)
+            if (layerUsesSample[layer])
+            {
+                lo *= volScale;
+                hi *= volScale;
+            }
 
             for (int s = s0 + 1; s <= s1; ++s)
             {
@@ -587,6 +618,8 @@ void EnvelopeEditor::regenerateWaveform()
                 if (envScale)
                     v *= (float) ampEnvForLayer[layer]->evaluate (
                         (double) s / (double) (n - 1));
+                if (layerUsesSample[layer])
+                    v *= volScale;
                 if (v < lo) lo = v;
                 if (v > hi) hi = v;
             }
@@ -636,6 +669,8 @@ void EnvelopeEditor::regenerateWaveform()
             if (envScale)
                 v *= (float) ampEnvForLayer[layer]->evaluate (
                     (double) srcIdx / (double) (n - 1));
+            if (layerUsesSample[layer])
+                v *= layerVol[layer];
             samples[(size_t) i] = v;
         }
 

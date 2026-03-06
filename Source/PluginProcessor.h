@@ -91,6 +91,12 @@ private:
     // Noise level (Phase 1)
     std::atomic<float>* pNoiseLevel    { nullptr };
 
+    // Per-layer volume knobs (Phase 9)
+    std::atomic<float>* pTransientLevel { nullptr };
+    std::atomic<float>* pBodyLevel      { nullptr };
+    std::atomic<float>* pResonantLevel  { nullptr };
+    std::atomic<float>* pRoomLevel      { nullptr };
+
     // Noise ADSR (Phase 2b)
     std::atomic<float>* pNoiseAttack   { nullptr };
     std::atomic<float>* pNoiseDecay    { nullptr };

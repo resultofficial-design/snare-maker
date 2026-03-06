@@ -65,6 +65,12 @@ public:
     // Override a single layer's amp envelope (used for Body/Room layer sharing).
     void setLayerAmpEnvelope (WaveLayer layer, FlexibleEnvelope& env);
 
+    // Bind per-layer volume parameters for waveform preview scaling.
+    void setLayerVolume (WaveLayer layer, std::atomic<float>& vol)
+    {
+        layerVolumes[static_cast<int> (layer)] = &vol;
+    }
+
     // Bind playback position from processor (elapsed seconds, <0 = idle).
     void setPlaybackPosition (std::atomic<float>& pos) { playbackPos = &pos; }
 
@@ -150,6 +156,12 @@ private:
     };
 
     float              waveformDuration = 0.5f;   // seconds, derived from params
+
+    // Per-layer volume pointers (from processor APVTS, not owned)
+    std::atomic<float>* layerVolumes[kNumLayers] {};
+
+    // Change detection for volume values
+    float lastWfVolumes[kNumLayers] { 1.0f, 1.0f, 1.0f, 1.0f };
 
     // Playback position (from processor, not owned)
     std::atomic<float>* playbackPos = nullptr;
