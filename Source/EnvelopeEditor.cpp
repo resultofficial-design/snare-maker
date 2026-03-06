@@ -767,7 +767,7 @@ void EnvelopeEditor::mouseDrag (const juce::MouseEvent& e)
     // ── Segment curve drag ──────────────────────────────────────────────────
     if (curveDragSegment >= 0)
     {
-        const float deltaY = e.position.y - curveDragStartY;
+        const float deltaY = curveDragStartY - e.position.y;
         const float deltaCurve = deltaY / 150.0f;
         const float newCurve = juce::jlimit (-1.0f, 1.0f,
                                               curveDragStartCurve + deltaCurve);
