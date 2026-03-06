@@ -110,20 +110,23 @@ void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawLinearSlider (
     const float top    = (float) y + kThumbR;
     const float bottom = (float) (y + height) - kThumbR;
 
+    // Clamp thumb position so it never crosses the track limits
+    const float clampedPos = juce::jlimit (top, bottom, sliderPos);
+
     g.setColour (kBgTrack);
     g.fillRoundedRectangle (cx - kTrackW * 0.5f, top, kTrackW, bottom - top, 3.0f);
 
     const juce::Colour accent = slider.findColour (juce::Slider::trackColourId);
-    const float        fillH  = bottom - sliderPos;
+    const float        fillH  = bottom - clampedPos;
     if (fillH > 0.0f)
     {
         g.setColour (accent);
-        g.fillRoundedRectangle (cx - kTrackW * 0.5f, sliderPos, kTrackW, fillH, 3.0f);
+        g.fillRoundedRectangle (cx - kTrackW * 0.5f, clampedPos, kTrackW, fillH, 3.0f);
     }
 
     // Flat thumb – no glow, no accent ring
     g.setColour (juce::Colour (0xffaaaaaa));
-    g.fillEllipse (cx - kThumbR, sliderPos - kThumbR, kThumbR * 2.0f, kThumbR * 2.0f);
+    g.fillEllipse (cx - kThumbR, clampedPos - kThumbR, kThumbR * 2.0f, kThumbR * 2.0f);
 }
 
 void SnareMakerAudioProcessorEditor::SnareLookAndFeel::drawRotarySlider (
@@ -438,6 +441,7 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     // ── Phase offset fader (BODY tab, inside envelope container left side) ──
     phaseOffsetSlider.setSliderStyle (juce::Slider::LinearVertical);
     phaseOffsetSlider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+    phaseOffsetSlider.setRange (0.0, 360.0, 1.0);
     phaseOffsetSlider.setColour (juce::Slider::trackColourId, juce::Colour (0xff5a5a6a));
     addChildComponent (phaseOffsetSlider);   // hidden until Body tab
     phaseOffsetAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
@@ -532,7 +536,7 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
         // Center fader in the 24px kPadX margin of the envelope editor
         constexpr int kEnvPadX = 24;   // matches EnvelopeEditor::kPadX
         constexpr int faderW   = 20;
-        constexpr int vInset   = 20;   // top + bottom inset
+        constexpr int vInset   = 36;   // top + bottom inset
         const int faderX = envEditorFullBounds.getX() + (kEnvPadX - faderW) / 2;
         phaseOffsetSlider.setBounds (faderX,
                                      envEditorFullBounds.getY() + vInset,
@@ -713,10 +717,16 @@ void SnareMakerAudioProcessorEditor::updateOutputBubble()
 
 void SnareMakerAudioProcessorEditor::updatePhaseBubble()
 {
-    const int val = (int) phaseOffsetSlider.getValue();
+    // Force-clamp the slider value so it never goes below 0
+    const double raw = phaseOffsetSlider.getValue();
+    const double clamped = juce::jlimit (0.0, 360.0, raw);
+    if (raw != clamped)
+        phaseOffsetSlider.setValue (clamped, juce::dontSendNotification);
+
+    const int val = (int) clamped;
     phaseBubble.text = juce::String (val) + juce::String::charToString (0x00B0);   // degree sign
 
-    const float thumbY = (float) phaseOffsetSlider.getPositionOfValue (phaseOffsetSlider.getValue());
+    const float thumbY = (float) phaseOffsetSlider.getPositionOfValue (clamped);
     constexpr int bubbleW = 46, bubbleH = 22, gap = 4;
     phaseBubble.setBounds (phaseOffsetSlider.getRight() + gap,
                            phaseOffsetSlider.getY() + (int) thumbY - bubbleH / 2,
