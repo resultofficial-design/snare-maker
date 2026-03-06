@@ -105,6 +105,9 @@ private:
     EnvelopeEditor             envelopeEditor;
     juce::Rectangle<int>       envEditorFullBounds;   // full-width bounds (set in resized)
 
+    // ── Transient waveform bounds (80% width, set in resized) ────────────────
+    juce::Rectangle<int>       transientWaveBounds;
+
     // ── Envelope mode buttons (below envelope editor) ────────────────────────
     enum class EnvMode { Pitch, BodyAmp, NoiseAmp, ResonantAmp, RoomAmp };
     EnvMode envMode { EnvMode::Pitch };
@@ -127,6 +130,16 @@ private:
     // ── Noise filter visualizer (GEN mode) ──────────────────────────────────
     NoiseFilterVisualizer       noiseFilterVis;
     juce::Rectangle<int>        noiseFilterBounds;
+
+    // ── Transient filter visualizer ──────────────────────────────────────────
+    NoiseFilterVisualizer       transientFilterVis;
+    juce::Rectangle<int>        transientFilterBounds;
+    juce::Rectangle<int>        transientSampleBtnBounds;  // LOAD SAMPLE full container
+    juce::Rectangle<int>        transientDropBounds;       // dropdown hit-test
+
+    // ── Transient sample browser buttons ─────────────────────────────────────
+    juce::TextButton            transientPrevBtn  { "<" };
+    juce::TextButton            transientNextBtn  { ">" };
 
     // ── Sauce knob (visual only, no APVTS) ──────────────────────────────────
     juce::Slider sauceKnob;

@@ -17,6 +17,8 @@ class NoiseFilterVisualizer : public juce::Component
 public:
     NoiseFilterVisualizer();
 
+    void setAccentColour (juce::uint32 argb) { accentColour = argb; repaint(); }
+
     void paint     (juce::Graphics&) override;
     void mouseDown (const juce::MouseEvent&) override;
     void mouseDrag (const juce::MouseEvent&) override;
@@ -52,7 +54,8 @@ private:
     // Palette
     static constexpr juce::uint32 kBgColour     = 0xff181D24;
     static constexpr juce::uint32 kGridColour   = 0xff222830;
-    static constexpr juce::uint32 kAccentColour = 0xffe94560;   // noise red
+    static constexpr juce::uint32 kDefaultAccent = 0xffe94560;  // noise red
+    juce::uint32 accentColour = kDefaultAccent;
     static constexpr juce::uint32 kNodeDim      = 0xff555566;
 
     // Coordinate helpers

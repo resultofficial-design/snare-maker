@@ -212,6 +212,23 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     // ── Noise filter visualizer (hidden until Noise/GEN) ──────────────────
     addChildComponent (noiseFilterVis);
 
+    // ── Transient filter visualizer (hidden until Transient tab) ─────────
+    transientFilterVis.setAccentColour (0xffffaa33);   // transient orange
+    addChildComponent (transientFilterVis);
+
+    // ── Transient sample browser prev/next buttons ───────────────────────
+    for (auto* btn : { &transientPrevBtn, &transientNextBtn })
+    {
+        btn->setColour (juce::TextButton::buttonColourId,   juce::Colours::transparentBlack);
+        btn->setColour (juce::TextButton::buttonOnColourId,  juce::Colours::transparentBlack);
+        btn->setColour (juce::TextButton::textColourOffId,   juce::Colours::white.withAlpha (0.7f));
+        btn->setColour (juce::TextButton::textColourOnId,    juce::Colours::white);
+        btn->setColour (juce::ComboBox::outlineColourId,     juce::Colours::transparentBlack);
+        addChildComponent (*btn);
+    }
+    transientPrevBtn.onClick = [this] { /* placeholder: previous sample */ };
+    transientNextBtn.onClick = [this] { /* placeholder: next sample */ };
+
     // ── Sauce knob (visual only, no APVTS) ────────────────────────────────
     sauceKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     sauceKnob.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
@@ -288,7 +305,7 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     // Envelope mode buttons
     noiseAmpBtn .setVisible (false);
 
-    // Envelope editor visible for Transient, Body, Noise, Resonant, and Room
+    // Envelope editor visible for all layer tabs (waveform overlay)
     envelopeEditor.setVisible (showTransient || showBody || showNoise || showResonant || showRoom);
 
     // Map tab → waveform layer highlight
@@ -298,8 +315,12 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     else if (showNoise)     envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Noise);
     else if (showRoom)      envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Body);
 
-    // Resonant / Noise / Room tab: envelope at 80% of full width (side panel fills the rest)
-    if (showResonant || showNoise || showRoom)
+    // Transient / Resonant / Noise / Room: 80% width (side panel fills the rest)
+    if (showTransient)
+    {
+        envelopeEditor.setBounds (transientWaveBounds);
+    }
+    else if (showResonant || showNoise || showRoom)
     {
         auto b = envEditorFullBounds;
         b.setWidth (b.getWidth() * 4 / 5 - 30);
@@ -314,6 +335,13 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     noiseFilterVis.setVisible (showNoise && noiseSrc == NoiseSrc::Gen);
     if (showNoise)
         noiseFilterVis.setBounds (noiseFilterBounds);
+
+    // Transient filter visualizer + sample buttons: visible only in Transient tab
+    transientFilterVis.setVisible (showTransient);
+    transientPrevBtn.setVisible (showTransient);
+    transientNextBtn.setVisible (showTransient);
+    if (showTransient)
+        transientFilterVis.setBounds (transientFilterBounds);
 
     // Sauce knob: visible only on Sauce tab
     const bool showSauce = (tab == Tab::Sauce);
@@ -457,6 +485,10 @@ void SnareMakerAudioProcessorEditor::resized()
         envEditorFullBounds = { leftX, envTop, rightEnd - leftX, envH };
         envelopeEditor.setBounds (envEditorFullBounds);
 
+        // Transient waveform: 80% width (same split as envelope tabs)
+        transientWaveBounds = { leftX, envTop,
+                                (rightEnd - leftX) * 4 / 5 - 30, envH };
+
         // BODY tab: AMP|PITCH segmented selector
         const int envL = envEditorFullBounds.getX();
         const int envW = envEditorFullBounds.getWidth();
@@ -501,6 +533,30 @@ void SnareMakerAudioProcessorEditor::resized()
         const int filtH = envEditorFullBounds.getBottom() - innerPad - filtY;
 
         noiseFilterBounds = { selX, filtY, selW, filtH / 2 };
+    }
+
+    // ── Transient filter visualizer + LOAD SAMPLE bounds ─────────────────────
+    {
+        const int sideX = transientWaveBounds.getRight() + kUISpacing;
+        const int sideW = outputZoneBounds.getX() - sideX - kUISpacing;
+
+        constexpr int innerPad = 6;
+        constexpr int selH     = 28;
+        constexpr int secGap   = 6;
+        constexpr int knobSize = 40;
+        constexpr int labelH   = 14;
+
+        const int selX  = sideX + innerPad;
+        const int selY  = envEditorFullBounds.getY() + innerPad;
+        const int selW  = sideW - innerPad * 2;
+
+        transientSampleBtnBounds = { selX, selY, selW, selH };
+
+        const int knobY = selY + selH + secGap + 4;
+        const int filtY = knobY + knobSize + labelH + secGap + 4;
+        const int filtH = envEditorFullBounds.getBottom() - innerPad - filtY;
+
+        transientFilterBounds = { selX, filtY, selW, filtH / 2 };
     }
 }
 
@@ -622,6 +678,24 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
         noiseType = static_cast<NoiseType> (juce::jlimit (0, 4, idx));
         repaint();
         return;
+    }
+
+    // ── Transient sample browser clicks ─────────────────────────────────
+    if (activeTab == Tab::Transient && !e.mods.isPopupMenu())
+    {
+        if (!transientDropBounds.isEmpty()
+            && transientDropBounds.contains (e.getPosition()))
+        {
+            juce::PopupMenu menu;
+            menu.addItem (1, "Kick");
+            menu.addItem (2, "Snare");
+            menu.addItem (3, "Percussion");
+            menu.addItem (4, "FX");
+            menu.showMenuAsync (juce::PopupMenu::Options()
+                .withTargetScreenArea (localAreaToGlobal (transientSampleBtnBounds))
+                .withMinimumWidth (transientSampleBtnBounds.getWidth()));
+            return;
+        }
     }
 
     const Zone z = zoneAt (e.getPosition());
@@ -884,6 +958,105 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
         g.setColour (kBgPanel);
         g.fillRoundedRectangle (sideBox, 8.0f);
 
+        // Transient tab: LOAD SAMPLE button + WIDTH/PITCH knobs
+        if (activeTab == Tab::Transient)
+        {
+            constexpr int innerPad = 6;
+            constexpr int selH     = 28;
+            constexpr int secGap   = 6;
+            constexpr int knobSize = 40;
+            constexpr int labelH   = 14;
+            const int selX2 = sideX + innerPad;
+            const int selY2 = envEditorFullBounds.getY() + innerPad;
+            const int selW2 = sideW - innerPad * 2;
+
+            // ── LOAD SAMPLE inline browser: [ < ] LOAD SAMPLE ▼ [ > ]
+            transientSampleBtnBounds = { selX2, selY2, selW2, selH };
+
+            g.setColour (juce::Colour (0xff2A3038));
+            g.fillRoundedRectangle ((float) selX2, (float) selY2,
+                                    (float) selW2, (float) selH, 8.0f);
+
+            constexpr int arrowW = 22;
+            const int prevX = selX2;
+            const int nextX = selX2 + selW2 - arrowW;
+            const int midX  = prevX + arrowW;
+            const int midW  = selW2 - arrowW * 2;
+
+            // Dropdown hit-test (centre region)
+            transientDropBounds = { midX, selY2, midW, selH };
+
+            // Position real button components
+            transientPrevBtn.setBounds (prevX, selY2, arrowW, selH);
+            transientNextBtn.setBounds (nextX, selY2, arrowW, selH);
+
+            // Divider lines
+            g.setColour (juce::Colour (0xff363E4A));
+            g.fillRect ((float) (prevX + arrowW), (float) selY2 + 5.0f,
+                        1.0f, (float) selH - 10.0f);
+            g.fillRect ((float) nextX, (float) selY2 + 5.0f,
+                        1.0f, (float) selH - 10.0f);
+
+            // Centre label
+            g.setColour (juce::Colours::white);
+            g.setFont (lnf.interMediumFont (10.0f));
+            g.drawText ("LOAD SAMPLE", midX, selY2, midW - 14, selH,
+                        juce::Justification::centred, false);
+
+            // Dropdown triangle (drawn via path)
+            {
+                const float triX = (float) (midX + midW) - 16.0f;
+                const float triY = (float) selY2 + (float) selH * 0.5f - 2.0f;
+                juce::Path tri;
+                tri.addTriangle (triX, triY, triX + 7.0f, triY, triX + 3.5f, triY + 5.0f);
+                g.setColour (juce::Colours::white.withAlpha (0.7f));
+                g.fillPath (tri);
+            }
+
+            // ── WIDTH & PITCH knobs ──────────────────────────────────
+            const int knobY = selY2 + selH + secGap + 4;
+            const int knobArea = selW2 / 2;
+            const int knob1X = selX2 + knobArea / 2 - knobSize / 2;
+            const int knob2X = selX2 + knobArea + knobArea / 2 - knobSize / 2;
+
+            // Width knob
+            g.setColour (juce::Colour (0xff2A3038));
+            g.fillEllipse ((float) knob1X, (float) knobY,
+                           (float) knobSize, (float) knobSize);
+            g.setColour (juce::Colour (0xff363E4A));
+            g.drawEllipse ((float) knob1X + 0.5f, (float) knobY + 0.5f,
+                           (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
+            g.setColour (juce::Colours::white.withAlpha (0.6f));
+            {
+                const float kcx = (float) knob1X + (float) knobSize * 0.5f;
+                g.drawLine (kcx, (float) knobY + (float) knobSize * 0.5f,
+                            kcx, (float) knobY + 4.0f, 1.5f);
+            }
+            g.setColour (kTextMuted);
+            g.setFont (lnf.interRegularFont (9.0f));
+            g.drawText ("Width", knob1X - 5, knobY + knobSize + 2,
+                        knobSize + 10, labelH, juce::Justification::centred, false);
+
+            // Pitch knob
+            g.setColour (juce::Colour (0xff2A3038));
+            g.fillEllipse ((float) knob2X, (float) knobY,
+                           (float) knobSize, (float) knobSize);
+            g.setColour (juce::Colour (0xff363E4A));
+            g.drawEllipse ((float) knob2X + 0.5f, (float) knobY + 0.5f,
+                           (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
+            g.setColour (juce::Colours::white.withAlpha (0.6f));
+            {
+                const float kcx = (float) knob2X + (float) knobSize * 0.5f;
+                g.drawLine (kcx, (float) knobY + (float) knobSize * 0.5f,
+                            kcx, (float) knobY + 4.0f, 1.5f);
+            }
+            g.setColour (kTextMuted);
+            g.drawText ("Pitch", knob2X - 5, knobY + knobSize + 2,
+                        knobSize + 10, labelH, juce::Justification::centred, false);
+
+            // Filter section: handled by transientFilterVis component
+        }
+
         // Noise tab: compact GEN / SAMPLE selector at top of side panel
         if (activeTab == Tab::Noise)
         {
@@ -1051,12 +1224,10 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
         }
     }
 
-    // Transient tab: canvas (no envelope overlay)
+    // Transient tab: canvas (80% width, matching envelope tab layout)
     if (activeTab == Tab::Transient)
     {
-        auto c = envEditorFullBounds;
-        c.setWidth (c.getWidth() * 4 / 5 - 30);
-        const auto cf = c.toFloat();
+        const auto cf = transientWaveBounds.toFloat();
 
         const float padX = 24.0f, padT = 20.0f, padB = 20.0f;
         const float plotL = cf.getX() + padX;

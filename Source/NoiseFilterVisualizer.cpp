@@ -137,12 +137,12 @@ void NoiseFilterVisualizer::paint (juce::Graphics& g)
         fillPath.lineTo (plotL, plotB);
         fillPath.closeSubPath();
 
-        g.setColour (juce::Colour (kAccentColour).withAlpha (0.08f));
+        g.setColour (juce::Colour (accentColour).withAlpha (0.08f));
         g.fillPath (fillPath);
     }
 
     // ── 4. Curve stroke ─────────────────────────────────────────────────────
-    g.setColour (juce::Colour (kAccentColour).withAlpha (0.85f));
+    g.setColour (juce::Colour (accentColour).withAlpha (0.85f));
     g.strokePath (curvePath, juce::PathStrokeType (2.0f));
 
     // ── 5. Nodes ─────────────────────────────────────────────────────────────
@@ -154,7 +154,7 @@ void NoiseFilterVisualizer::paint (juce::Graphics& g)
         // Glow ring when active
         if (active)
         {
-            g.setColour (juce::Colour (kAccentColour).withAlpha (0.18f));
+            g.setColour (juce::Colour (accentColour).withAlpha (0.18f));
             g.fillEllipse (px.x - kNodeRadius * 1.8f, px.y - kNodeRadius * 1.8f,
                            kNodeRadius * 3.6f, kNodeRadius * 3.6f);
         }
