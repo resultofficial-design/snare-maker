@@ -173,8 +173,17 @@ private:
     juce::TextButton            roomPrevBtn  { "<" };
     juce::TextButton            roomNextBtn  { ">" };
 
+    // ── Resonant control panel ──────────────────────────────────────────────
+    NoiseFilterVisualizer       resonantFilterVis;
+    juce::Rectangle<int>        resonantFilterBounds;
+    juce::Rectangle<int>        resonantSampleBtnBounds;  // LOAD RESONANCE full container
+    juce::Rectangle<int>        resonantDropBounds;       // dropdown hit-test
+    juce::TextButton            resonantPrevBtn  { "<" };
+    juce::TextButton            resonantNextBtn  { ">" };
+    juce::TextButton            resonantFollowBodyBtn { "FOLLOW BODY" };
+
     // ── Dropdown open state (for flattening container bottom corners) ───────
-    enum class OpenDropdown { None, TransientSample, NoiseSample, RoomIr };
+    enum class OpenDropdown { None, TransientSample, NoiseSample, RoomIr, ResonantSample };
     OpenDropdown openDropdown { OpenDropdown::None };
 
     // ── Sauce knob (visual only, no APVTS) ──────────────────────────────────

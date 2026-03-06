@@ -332,6 +332,30 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     roomPrevBtn.onClick = [this] { /* placeholder: previous IR */ };
     roomNextBtn.onClick = [this] { /* placeholder: next IR */ };
 
+    // ── Resonant filter visualizer + sample browser + follow body ─────────
+    resonantFilterVis.setAccentColour (0xff55dd77);   // resonant green
+    addChildComponent (resonantFilterVis);
+
+    for (auto* btn : { &resonantPrevBtn, &resonantNextBtn })
+    {
+        btn->setColour (juce::TextButton::buttonColourId,   juce::Colours::transparentBlack);
+        btn->setColour (juce::TextButton::buttonOnColourId,  juce::Colours::transparentBlack);
+        btn->setColour (juce::TextButton::textColourOffId,   juce::Colours::white.withAlpha (0.7f));
+        btn->setColour (juce::TextButton::textColourOnId,    juce::Colours::white);
+        btn->setColour (juce::ComboBox::outlineColourId,     juce::Colours::transparentBlack);
+        addChildComponent (*btn);
+    }
+    resonantPrevBtn.onClick = [this] { /* placeholder: previous resonance sample */ };
+    resonantNextBtn.onClick = [this] { /* placeholder: next resonance sample */ };
+
+    resonantFollowBodyBtn.setClickingTogglesState (true);
+    resonantFollowBodyBtn.setColour (juce::TextButton::buttonColourId,   juce::Colours::transparentBlack);
+    resonantFollowBodyBtn.setColour (juce::TextButton::buttonOnColourId,  juce::Colour (0xff55dd77).withAlpha (0.15f));
+    resonantFollowBodyBtn.setColour (juce::TextButton::textColourOffId,   juce::Colour (0xff55dd77).withAlpha (0.5f));
+    resonantFollowBodyBtn.setColour (juce::TextButton::textColourOnId,    juce::Colour (0xff55dd77));
+    resonantFollowBodyBtn.setColour (juce::ComboBox::outlineColourId,     juce::Colours::transparentBlack);
+    addChildComponent (resonantFollowBodyBtn);
+
     // ── Sauce knob (visual only, no APVTS) ────────────────────────────────
     sauceKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     sauceKnob.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
@@ -460,6 +484,14 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     roomNextBtn.setVisible (showRoom);
     if (showRoom)
         roomFilterVis.setBounds (roomFilterBounds);
+
+    // Resonant filter visualizer + sample buttons + follow body: visible only in Resonant tab
+    resonantFilterVis.setVisible (showResonant);
+    resonantPrevBtn.setVisible (showResonant);
+    resonantNextBtn.setVisible (showResonant);
+    resonantFollowBodyBtn.setVisible (showResonant);
+    if (showResonant)
+        resonantFilterVis.setBounds (resonantFilterBounds);
 
     // Sauce knob: visible only on Sauce tab
     const bool showSauce = (tab == Tab::Sauce);
@@ -712,6 +744,34 @@ void SnareMakerAudioProcessorEditor::resized()
 
         roomFilterBounds = { selX, filtY, selW, filtH };
     }
+
+    // ── Resonant control panel bounds ────────────────────────────────────────
+    {
+        const int waveW = envEditorFullBounds.getWidth() * 4 / 5 - 30;
+        const int sideX = envEditorFullBounds.getX() + waveW + kUISpacing;
+        const int sideW = outputZoneBounds.getX() - sideX - kUISpacing;
+
+        constexpr int innerPad = 6;
+        constexpr int selH     = 28;
+        constexpr int secGap   = 6;
+        constexpr int knobSize = 40;
+        constexpr int labelH   = 14;
+        constexpr int toggleH  = 24;
+
+        const int selX2  = sideX + innerPad;
+        const int selY2  = envEditorFullBounds.getY() + innerPad;
+        const int selW2  = sideW - innerPad * 2;
+
+        resonantSampleBtnBounds = { selX2, selY2, selW2, selH };
+
+        const int knobY  = selY2 + selH + secGap + 4;
+        const int row2Y  = knobY + knobSize + labelH + secGap;
+        const int togY   = row2Y + knobSize + labelH + secGap + 4;
+        const int filtY  = togY + toggleH + secGap;
+        const int filtH  = envEditorFullBounds.getBottom() - innerPad - filtY;
+
+        resonantFilterBounds = { selX2, filtY, selW2, filtH };
+    }
 }
 
 // =============================================================================
@@ -896,6 +956,39 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
             menu.showMenuAsync (juce::PopupMenu::Options()
                 .withTargetScreenArea (localAreaToGlobal (transientSampleBtnBounds))
                 .withMinimumWidth (transientSampleBtnBounds.getWidth())
+                .withPreferredPopupDirection (juce::PopupMenu::Options::PopupDirection::downwards)
+                .withStandardItemHeight (28),
+                [this] (int) { openDropdown = OpenDropdown::None; repaint(); });
+            return;
+        }
+    }
+
+    // ── Resonant sample browser clicks ─────────────────────────────────
+    if (activeTab == Tab::Resonant && !e.mods.isPopupMenu())
+    {
+        if (!resonantDropBounds.isEmpty()
+            && resonantDropBounds.contains (e.getPosition()))
+        {
+            if (openDropdown == OpenDropdown::ResonantSample)
+            {
+                openDropdown = OpenDropdown::None;
+                repaint();
+                return;
+            }
+            juce::PopupMenu menu;
+            menu.addItem (1, "Metal");
+            menu.addItem (2, "Shell");
+            menu.addItem (3, "Spring");
+            menu.addItem (4, "Plate");
+            menu.addItem (5, "Analog");
+            menu.addItem (6, "FM");
+            menu.addItem (7, "User");
+            menu.setLookAndFeel (&lnf);
+            openDropdown = OpenDropdown::ResonantSample;
+            repaint();
+            menu.showMenuAsync (juce::PopupMenu::Options()
+                .withTargetScreenArea (localAreaToGlobal (resonantSampleBtnBounds))
+                .withMinimumWidth (resonantSampleBtnBounds.getWidth())
                 .withPreferredPopupDirection (juce::PopupMenu::Options::PopupDirection::downwards)
                 .withStandardItemHeight (28),
                 [this] (int) { openDropdown = OpenDropdown::None; repaint(); });
@@ -1397,6 +1490,107 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             drawKnob (k2X, row2Y, "Width");
 
             // Filter section: handled by roomFilterVis component
+        }
+
+        // Resonant tab: LOAD RESONANCE + PITCH/DECAY/WIDTH/DRIVE knobs + FOLLOW BODY toggle + filter
+        if (activeTab == Tab::Resonant)
+        {
+            constexpr int innerPad = 6;
+            constexpr int selH     = 28;
+            constexpr int secGap   = 6;
+            constexpr int knobSize = 40;
+            constexpr int labelH   = 14;
+            constexpr int toggleH  = 24;
+            const int selX2 = sideX + innerPad;
+            const int selY2 = envEditorFullBounds.getY() + innerPad;
+            const int selW2 = sideW - innerPad * 2;
+
+            // ── LOAD RESONANCE inline browser: [ < ] LOAD RESONANCE ▼ [ > ]
+            resonantSampleBtnBounds = { selX2, selY2, selW2, selH };
+
+            g.setColour (juce::Colour (0xff2A3038));
+            {
+                const bool dropOpen = (openDropdown == OpenDropdown::ResonantSample);
+                juce::Path containerPath;
+                containerPath.addRoundedRectangle ((float) selX2, (float) selY2,
+                                                   (float) selW2, (float) selH,
+                                                   8.0f, 8.0f,
+                                                   true, true,
+                                                   !dropOpen, !dropOpen);
+                g.fillPath (containerPath);
+            }
+
+            constexpr int arrowW = 22;
+            const int prevX = selX2;
+            const int nextX = selX2 + selW2 - arrowW;
+            const int midX  = prevX + arrowW;
+            const int midW  = selW2 - arrowW * 2;
+
+            resonantDropBounds = { midX, selY2, midW, selH };
+
+            resonantPrevBtn.setBounds (prevX, selY2, arrowW, selH);
+            resonantNextBtn.setBounds (nextX, selY2, arrowW, selH);
+
+            // Divider lines
+            g.setColour (juce::Colour (0xff363E4A));
+            g.fillRect ((float) (prevX + arrowW), (float) selY2 + 5.0f,
+                        1.0f, (float) selH - 10.0f);
+            g.fillRect ((float) nextX, (float) selY2 + 5.0f,
+                        1.0f, (float) selH - 10.0f);
+
+            // Centre label
+            g.setColour (juce::Colours::white);
+            g.setFont (lnf.interMediumFont (10.0f));
+            g.drawText ("LOAD RESONANCE", midX, selY2, midW - 14, selH,
+                        juce::Justification::centred, false);
+
+            // Dropdown triangle
+            {
+                const float triX = (float) (midX + midW) - 16.0f;
+                const float triY = (float) selY2 + (float) selH * 0.5f - 2.0f;
+                juce::Path tri;
+                tri.addTriangle (triX, triY, triX + 7.0f, triY, triX + 3.5f, triY + 5.0f);
+                g.setColour (juce::Colours::white.withAlpha (0.7f));
+                g.fillPath (tri);
+            }
+
+            // ── 2×2 knob grid: PITCH / DECAY / WIDTH / DRIVE ─────────
+            const int knobY  = selY2 + selH + secGap + 4;
+            const int knobArea = selW2 / 2;
+            const int k1X = selX2 + knobArea / 2 - knobSize / 2;
+            const int k2X = selX2 + knobArea + knobArea / 2 - knobSize / 2;
+            const int row2Y = knobY + knobSize + labelH + secGap;
+
+            auto drawKnob = [&] (int kx, int ky, const char* label)
+            {
+                g.setColour (juce::Colour (0xff2A3038));
+                g.fillEllipse ((float) kx, (float) ky,
+                               (float) knobSize, (float) knobSize);
+                g.setColour (juce::Colour (0xff363E4A));
+                g.drawEllipse ((float) kx + 0.5f, (float) ky + 0.5f,
+                               (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
+                g.setColour (juce::Colours::white.withAlpha (0.6f));
+                {
+                    const float kcx = (float) kx + (float) knobSize * 0.5f;
+                    g.drawLine (kcx, (float) ky + (float) knobSize * 0.5f,
+                                kcx, (float) ky + 4.0f, 1.5f);
+                }
+                g.setColour (kTextMuted);
+                g.setFont (lnf.interRegularFont (9.0f));
+                g.drawText (label, kx - 10, ky + knobSize + 2,
+                            knobSize + 20, labelH, juce::Justification::centred, false);
+            };
+
+            drawKnob (k1X, knobY, "Pitch");
+            drawKnob (k2X, knobY, "Decay");
+            drawKnob (k1X, row2Y, "Width");
+            drawKnob (k2X, row2Y, "Drive");
+
+            // ── FOLLOW BODY toggle button ─────────────────────────────
+            const int togY = row2Y + knobSize + labelH + secGap + 4;
+            resonantFollowBodyBtn.setBounds (selX2, togY, selW2, toggleH);
+
+            // Filter section: handled by resonantFilterVis component
         }
 
         // Noise tab: compact GEN / SAMPLE selector at top of side panel
