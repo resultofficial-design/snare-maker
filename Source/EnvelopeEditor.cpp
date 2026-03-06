@@ -742,10 +742,20 @@ void EnvelopeEditor::mouseDown (const juce::MouseEvent& e)
         return;
     }
 
-    // No node hit – check for segment curve drag
+    // No node hit – check for segment interaction
     const int segHit = hitTestSegment (e.position);
     if (segHit >= 0)
     {
+        // Right-click on segment: reset curve to straight
+        if (e.mods.isRightButtonDown())
+        {
+            envelope->points[(size_t) segHit].curve = 0.0f;
+            regenerateWaveform();
+            repaint();
+            return;
+        }
+
+        // Left-click: start curve drag
         curveDragSegment    = segHit;
         curveDragStartY     = e.position.y;
         curveDragStartCurve = envelope->points[(size_t) segHit].curve;
@@ -760,7 +770,7 @@ void EnvelopeEditor::mouseDrag (const juce::MouseEvent& e)
         const float deltaY = e.position.y - curveDragStartY;
         const float deltaCurve = deltaY / 150.0f;
         const float newCurve = juce::jlimit (-1.0f, 1.0f,
-                                              curveDragStartCurve - deltaCurve);
+                                              curveDragStartCurve + deltaCurve);
         envelope->points[(size_t) curveDragSegment].curve = newCurve;
         regenerateWaveform();
         repaint();
@@ -883,11 +893,17 @@ void EnvelopeEditor::mouseDoubleClick (const juce::MouseEvent& e)
     if (envelopeLock != nullptr)
     {
         juce::SpinLock::ScopedLockType lock (*envelopeLock);
-        envelope->addPoint (norm.x, norm.y);
+        const int idx = envelope->addPoint (norm.x, norm.y);
+        // Ensure both new segments are straight: new point (curve=0 by default)
+        // and the preceding point whose curve previously shaped the old segment.
+        if (idx > 0)
+            envelope->points[(size_t) (idx - 1)].curve = 0.0f;
     }
     else
     {
-        envelope->addPoint (norm.x, norm.y);
+        const int idx = envelope->addPoint (norm.x, norm.y);
+        if (idx > 0)
+            envelope->points[(size_t) (idx - 1)].curve = 0.0f;
     }
 
     regenerateWaveform();
