@@ -62,8 +62,8 @@ public:
 
     // Default constructor: 3-point pitch sweep (useful for snare body).
     FlexibleEnvelope()
-        : points ({ { 0.0f, 0.0f, 0.6f },
-                    { 0.1f, 1.0f, 0.6f },
+        : points ({ { 0.0f, 0.0f, 0.0f },
+                    { 0.1f, 1.0f, 0.0f },
                     { 1.0f, 0.0f, 0.0f } }) {}
 
     explicit FlexibleEnvelope (std::vector<EnvelopePoint> pts)

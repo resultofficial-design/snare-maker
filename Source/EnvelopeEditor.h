@@ -99,9 +99,15 @@ private:
     // Always points to the pitch envelope for waveform preview accuracy.
     FlexibleEnvelope* pitchEnvelopeForPreview = nullptr;
 
-    // Interaction state
+    // Interaction state – nodes
     int dragIndex    = -1;   // index of node being dragged, -1 = none
     int hoveredIndex = -1;   // index of node under cursor,  -1 = none
+
+    // Interaction state – segment curve dragging
+    int   hoveredSegment     = -1;    // segment index under cursor (-1 = none)
+    int   curveDragSegment   = -1;    // segment being curve-dragged (-1 = none)
+    float curveDragStartY    = 0.0f;  // mouse Y at drag start (pixels)
+    float curveDragStartCurve = 0.0f; // curve value at drag start
 
     // SpinLock from processor (guards add/remove of points)
     juce::SpinLock* envelopeLock = nullptr;
@@ -183,6 +189,10 @@ private:
 
     // Find nearest node within kHitRadius of a pixel position, or -1
     int hitTestNode (juce::Point<float> px) const noexcept;
+
+    // Find nearest segment within kHitRadius of a pixel position, or -1
+    // Only returns a hit if no node is under the cursor (nodes take priority).
+    int hitTestSegment (juce::Point<float> px) const noexcept;
 
     // Build exponentially-shaped path through all points
     // (piecewise quadratic Bezier, per-segment curvature)

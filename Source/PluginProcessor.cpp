@@ -36,11 +36,11 @@ SnareMakerAudioProcessor::SnareMakerAudioProcessor()
 
     // Amplitude envelopes: start at 1.0, decay to 0.0
     transientAmpEnvelope = FlexibleEnvelope ({
-        { 0.0f, 1.0f, 0.8f }, { 0.05f, 0.6f, 0.6f }, { 1.0f, 0.0f, 0.0f } });
+        { 0.0f, 1.0f, 0.0f }, { 0.05f, 0.6f, 0.0f }, { 1.0f, 0.0f, 0.0f } });
     bodyAmpEnvelope = FlexibleEnvelope ({
-        { 0.0f, 1.0f, 0.6f }, { 0.3f, 0.4f, 0.6f }, { 1.0f, 0.0f, 0.0f } });
+        { 0.0f, 1.0f, 0.0f }, { 0.3f, 0.4f, 0.0f }, { 1.0f, 0.0f, 0.0f } });
     noiseAmpEnvelope = FlexibleEnvelope ({
-        { 0.0f, 1.0f, 0.6f }, { 0.2f, 0.5f, 0.6f }, { 1.0f, 0.0f, 0.0f } });
+        { 0.0f, 1.0f, 0.0f }, { 0.2f, 0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f } });
 }
 
 SnareMakerAudioProcessor::~SnareMakerAudioProcessor() {}

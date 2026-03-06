@@ -61,10 +61,12 @@ void EnvelopeEditor::connectToParameters (juce::AudioProcessorValueTreeState& ap
 
 void EnvelopeEditor::setEnvelope (FlexibleEnvelope& env)
 {
-    envelope     = &env;
-    dragIndex    = -1;
-    hoveredIndex = -1;
-    lastPointsHash = 0;   // force waveform regeneration
+    envelope         = &env;
+    dragIndex        = -1;
+    hoveredIndex     = -1;
+    hoveredSegment   = -1;
+    curveDragSegment = -1;
+    lastPointsHash   = 0;   // force waveform regeneration
     regenerateWaveform();
     repaint();
 }
@@ -312,6 +314,57 @@ int EnvelopeEditor::hitTestNode (juce::Point<float> px) const noexcept
     }
 
     return bestIdx;
+}
+
+// =============================================================================
+// hitTestSegment  –  find nearest segment curve within kHitRadius
+// =============================================================================
+
+int EnvelopeEditor::hitTestSegment (juce::Point<float> px) const noexcept
+{
+    if (envelope == nullptr)
+        return -1;
+
+    // Nodes always take priority over segments
+    if (hitTestNode (px) >= 0)
+        return -1;
+
+    const int n = envelope->getNumPoints();
+    if (n < 2)
+        return -1;
+
+    int   bestSeg  = -1;
+    float bestDist = kHitRadius * kHitRadius;
+
+    constexpr int kTestSamples = 20;
+
+    for (int seg = 0; seg < n - 1; ++seg)
+    {
+        const auto& pa = envelope->points[(size_t) seg];
+        const auto& pb = envelope->points[(size_t) (seg + 1)];
+        const float k  = pa.curve;
+
+        for (int j = 0; j <= kTestSamples; ++j)
+        {
+            const float t = (float) j / (float) kTestSamples;
+            const float shaped = FlexibleEnvelope::shapeCurveF (t, k);
+            const auto pt = toPixel ({
+                pa.time + (pb.time - pa.time) * t,
+                pa.value + (pb.value - pa.value) * shaped });
+
+            const float dx = px.x - pt.x;
+            const float dy = px.y - pt.y;
+            const float d2 = dx * dx + dy * dy;
+
+            if (d2 < bestDist)
+            {
+                bestDist = d2;
+                bestSeg  = seg;
+            }
+        }
+    }
+
+    return bestSeg;
 }
 
 // =============================================================================
@@ -684,11 +737,36 @@ void EnvelopeEditor::mouseDown (const juce::MouseEvent& e)
 
     dragIndex = hit;
     if (dragIndex >= 0)
+    {
         repaint();
+        return;
+    }
+
+    // No node hit – check for segment curve drag
+    const int segHit = hitTestSegment (e.position);
+    if (segHit >= 0)
+    {
+        curveDragSegment    = segHit;
+        curveDragStartY     = e.position.y;
+        curveDragStartCurve = envelope->points[(size_t) segHit].curve;
+    }
 }
 
 void EnvelopeEditor::mouseDrag (const juce::MouseEvent& e)
 {
+    // ── Segment curve drag ──────────────────────────────────────────────────
+    if (curveDragSegment >= 0)
+    {
+        const float deltaY = e.position.y - curveDragStartY;
+        const float deltaCurve = deltaY / 150.0f;
+        const float newCurve = juce::jlimit (-1.0f, 1.0f,
+                                              curveDragStartCurve - deltaCurve);
+        envelope->points[(size_t) curveDragSegment].curve = newCurve;
+        regenerateWaveform();
+        repaint();
+        return;
+    }
+
     if (dragIndex < 0)
         return;
 
@@ -721,6 +799,12 @@ void EnvelopeEditor::mouseDrag (const juce::MouseEvent& e)
 
 void EnvelopeEditor::mouseUp (const juce::MouseEvent&)
 {
+    if (curveDragSegment >= 0)
+    {
+        curveDragSegment = -1;
+        repaint();
+    }
+
     if (dragIndex >= 0)
     {
         dragIndex = -1;
@@ -735,17 +819,51 @@ void EnvelopeEditor::mouseMove (const juce::MouseEvent& e)
     if (hit != hoveredIndex)
     {
         hoveredIndex = hit;
-        setMouseCursor (hit >= 0 ? juce::MouseCursor::DraggingHandCursor
-                                 : juce::MouseCursor::NormalCursor);
+
+        if (hit >= 0)
+        {
+            hoveredSegment = -1;
+            setMouseCursor (juce::MouseCursor::DraggingHandCursor);
+            repaint();
+            return;
+        }
+    }
+
+    if (hoveredIndex >= 0)
+    {
+        // Node is hovered – skip segment detection
+        return;
+    }
+
+    // No node hovered – check for segment hover
+    const int segHit = hitTestSegment (e.position);
+    if (segHit != hoveredSegment)
+    {
+        hoveredSegment = segHit;
+        setMouseCursor (segHit >= 0 ? juce::MouseCursor::UpDownResizeCursor
+                                    : juce::MouseCursor::NormalCursor);
         repaint();
     }
 }
 
 void EnvelopeEditor::mouseExit (const juce::MouseEvent&)
 {
+    bool changed = false;
+
     if (hoveredIndex >= 0)
     {
         hoveredIndex = -1;
+        changed = true;
+    }
+
+    if (hoveredSegment >= 0)
+    {
+        hoveredSegment = -1;
+        changed = true;
+    }
+
+    if (changed)
+    {
         setMouseCursor (juce::MouseCursor::NormalCursor);
         repaint();
     }
@@ -940,5 +1058,26 @@ void EnvelopeEditor::paint (juce::Graphics& g)
                      : isHovered ? juce::Colours::white
                      : curveGrey);
         g.fillEllipse (px.x - r, px.y - r, r * 2.0f, r * 2.0f);
+    }
+
+    // ── 9. Segment midpoint indicator (hovered or dragging) ─────────────────
+    {
+        const int activeSeg = (curveDragSegment >= 0) ? curveDragSegment
+                                                      : hoveredSegment;
+        if (activeSeg >= 0 && activeSeg < numPts - 1)
+        {
+            const auto& pa = envelope->points[(size_t) activeSeg];
+            const auto& pb = envelope->points[(size_t) (activeSeg + 1)];
+            const float shaped = FlexibleEnvelope::shapeCurveF (0.5f, pa.curve);
+            const auto midPx = toPixel ({
+                pa.time + (pb.time - pa.time) * 0.5f,
+                pa.value + (pb.value - pa.value) * shaped });
+
+            const float midR  = 3.0f;
+            const float alpha = (curveDragSegment >= 0) ? 0.9f : 0.5f;
+            g.setColour (juce::Colours::white.withAlpha (alpha));
+            g.fillEllipse (midPx.x - midR, midPx.y - midR,
+                           midR * 2.0f, midR * 2.0f);
+        }
     }
 }
