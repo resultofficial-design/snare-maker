@@ -48,6 +48,10 @@ public:
     // Set which waveform layer is highlighted (full alpha); others are dimmed.
     void setActiveLayer (WaveLayer layer);
 
+    // Replace a layer's waveform with externally-loaded sample data.
+    // Resamples to kWaveformSamples and rebuilds paths.
+    void setLayerSampleData (WaveLayer layer, const float* data, int numSamples);
+
     void paint     (juce::Graphics&) override;
     void resized   () override;
 

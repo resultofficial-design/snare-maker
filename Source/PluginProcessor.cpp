@@ -28,6 +28,9 @@ SnareMakerAudioProcessor::SnareMakerAudioProcessor()
     // Output
     pOutputGain    = apvts.getRawParameterValue ("outputGain");
 
+    // Register audio formats for sample loading (wav, aiff, etc.)
+    formatManager.registerBasicFormats();
+
     // Default 3-point pitch envelope (dynamic N-point)
     // pitchEnvelope uses default ctor: {0,0}, {0.1,1.0}, {1,0} (pitch sweep)
 
@@ -134,6 +137,45 @@ SnareMakerAudioProcessor::createParameterLayout()
         0.0f, Attr{}.withLabel ("dB")));
 
     return { params.begin(), params.end() };
+}
+
+// =============================================================================
+// Sample loading (Phase 8)
+// =============================================================================
+
+bool SnareMakerAudioProcessor::loadSampleFromFile (const juce::String& filePath,
+                                                    juce::AudioBuffer<float>& dest,
+                                                    juce::String& destPath)
+{
+    juce::File file (filePath);
+    if (! file.existsAsFile())
+        return false;
+
+    std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
+    if (reader == nullptr)
+        return false;
+
+    const int numSamples = (int) reader->lengthInSamples;
+    const int numChannels = (int) reader->numChannels;
+
+    juce::AudioBuffer<float> tempBuffer (numChannels, numSamples);
+    reader->read (&tempBuffer, 0, numSamples, 0, true, true);
+
+    // Mono mixdown if stereo
+    dest.setSize (1, numSamples);
+    if (numChannels == 1)
+    {
+        dest.copyFrom (0, 0, tempBuffer, 0, 0, numSamples);
+    }
+    else
+    {
+        dest.copyFrom (0, 0, tempBuffer, 0, 0, numSamples);
+        dest.addFrom  (0, 0, tempBuffer, 1, 0, numSamples);
+        dest.applyGain (0.5f);
+    }
+
+    destPath = filePath;
+    return true;
 }
 
 // =============================================================================

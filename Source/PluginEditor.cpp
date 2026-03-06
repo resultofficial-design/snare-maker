@@ -282,17 +282,68 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
                                         audioProcessor.waveformDisplayMode);
     addAndMakeVisible (envelopeEditor);
 
-    envelopeEditor.onSampleDropped = [this] (const juce::String& /*filePath*/)
+    envelopeEditor.onSampleDropped = [this] (const juce::String& filePath)
     {
-        if (activeTab == Tab::Noise && noiseSrc == NoiseSrc::Gen)
+        if (activeTab == Tab::Transient)
         {
-            noiseSrc = NoiseSrc::Sample;
-            noiseFilterVis.setVisible (false);
-            noiseSampleFilterVis.setVisible (true);
-            noiseSampleFilterVis.setBounds (noiseSampleFilterBounds);
-            noiseSamplePrevBtn.setVisible (true);
-            noiseSampleNextBtn.setVisible (true);
-            repaint();
+            if (audioProcessor.loadSampleFromFile (filePath,
+                    audioProcessor.transientSampleBuffer,
+                    audioProcessor.transientSamplePath))
+            {
+                envelopeEditor.setLayerSampleData (
+                    EnvelopeEditor::WaveLayer::Transient,
+                    audioProcessor.transientSampleBuffer.getReadPointer (0),
+                    audioProcessor.transientSampleBuffer.getNumSamples());
+                repaint();
+            }
+        }
+        else if (activeTab == Tab::Resonant)
+        {
+            if (audioProcessor.loadSampleFromFile (filePath,
+                    audioProcessor.resonantSampleBuffer,
+                    audioProcessor.resonantSamplePath))
+            {
+                envelopeEditor.setLayerSampleData (
+                    EnvelopeEditor::WaveLayer::Resonant,
+                    audioProcessor.resonantSampleBuffer.getReadPointer (0),
+                    audioProcessor.resonantSampleBuffer.getNumSamples());
+                repaint();
+            }
+        }
+        else if (activeTab == Tab::Noise)
+        {
+            if (noiseSrc == NoiseSrc::Gen)
+            {
+                noiseSrc = NoiseSrc::Sample;
+                noiseFilterVis.setVisible (false);
+                noiseSampleFilterVis.setVisible (true);
+                noiseSampleFilterVis.setBounds (noiseSampleFilterBounds);
+                noiseSamplePrevBtn.setVisible (true);
+                noiseSampleNextBtn.setVisible (true);
+            }
+            if (audioProcessor.loadSampleFromFile (filePath,
+                    audioProcessor.noiseSampleBuffer,
+                    audioProcessor.noiseSamplePath))
+            {
+                envelopeEditor.setLayerSampleData (
+                    EnvelopeEditor::WaveLayer::Noise,
+                    audioProcessor.noiseSampleBuffer.getReadPointer (0),
+                    audioProcessor.noiseSampleBuffer.getNumSamples());
+                repaint();
+            }
+        }
+        else if (activeTab == Tab::Room)
+        {
+            if (audioProcessor.loadSampleFromFile (filePath,
+                    audioProcessor.roomIRBuffer,
+                    audioProcessor.roomIRPath))
+            {
+                envelopeEditor.setLayerSampleData (
+                    EnvelopeEditor::WaveLayer::Body,
+                    audioProcessor.roomIRBuffer.getReadPointer (0),
+                    audioProcessor.roomIRBuffer.getNumSamples());
+                repaint();
+            }
         }
     };
 
@@ -1355,8 +1406,13 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             // Centre label
             g.setColour (juce::Colours::white);
             g.setFont (lnf.interMediumFont (10.0f));
-            g.drawText ("LOAD SAMPLE", midX, selY2, midW - 14, selH,
-                        juce::Justification::centred, false);
+            {
+                const auto label = audioProcessor.transientSamplePath.isEmpty()
+                    ? juce::String ("LOAD SAMPLE")
+                    : juce::File (audioProcessor.transientSamplePath).getFileName();
+                g.drawText (label, midX, selY2, midW - 14, selH,
+                            juce::Justification::centred, false);
+            }
 
             // Dropdown triangle (drawn via path)
             {
@@ -1461,8 +1517,13 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             // Centre label
             g.setColour (juce::Colours::white);
             g.setFont (lnf.interMediumFont (10.0f));
-            g.drawText ("LOAD IR", midX, selY2, midW - 14, selH,
-                        juce::Justification::centred, false);
+            {
+                const auto label = audioProcessor.roomIRPath.isEmpty()
+                    ? juce::String ("LOAD IR")
+                    : juce::File (audioProcessor.roomIRPath).getFileName();
+                g.drawText (label, midX, selY2, midW - 14, selH,
+                            juce::Justification::centred, false);
+            }
 
             // Dropdown triangle
             {
@@ -1558,8 +1619,13 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             // Centre label
             g.setColour (juce::Colours::white);
             g.setFont (lnf.interMediumFont (10.0f));
-            g.drawText ("LOAD RESONANCE", midX, selY2, midW - 14, selH,
-                        juce::Justification::centred, false);
+            {
+                const auto label = audioProcessor.resonantSamplePath.isEmpty()
+                    ? juce::String ("LOAD RESONANCE")
+                    : juce::File (audioProcessor.resonantSamplePath).getFileName();
+                g.drawText (label, midX, selY2, midW - 14, selH,
+                            juce::Justification::centred, false);
+            }
 
             // Dropdown triangle
             {
@@ -1800,8 +1866,13 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
                 // Centre label
                 g.setColour (juce::Colours::white);
                 g.setFont (lnf.interMediumFont (10.0f));
-                g.drawText ("LOAD SAMPLE", midX2, smpY, midW2 - 14, smpSelH,
-                            juce::Justification::centred, false);
+                {
+                    const auto label = audioProcessor.noiseSamplePath.isEmpty()
+                        ? juce::String ("LOAD SAMPLE")
+                        : juce::File (audioProcessor.noiseSamplePath).getFileName();
+                    g.drawText (label, midX2, smpY, midW2 - 14, smpSelH,
+                                juce::Justification::centred, false);
+                }
 
                 // Dropdown triangle
                 {

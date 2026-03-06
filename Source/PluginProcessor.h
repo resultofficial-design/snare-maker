@@ -49,6 +49,23 @@ public:
     // Shared across all EnvelopeEditor instances.
     std::atomic<int> waveformDisplayMode { 1 };   // default = True
 
+    // ── Sample loading (Phase 8) ─────────────────────────────────────────────
+    juce::AudioFormatManager formatManager;
+
+    juce::AudioBuffer<float> transientSampleBuffer;
+    juce::AudioBuffer<float> resonantSampleBuffer;
+    juce::AudioBuffer<float> noiseSampleBuffer;
+    juce::AudioBuffer<float> roomIRBuffer;
+
+    juce::String transientSamplePath;
+    juce::String resonantSamplePath;
+    juce::String noiseSamplePath;
+    juce::String roomIRPath;
+
+    bool loadSampleFromFile (const juce::String& filePath,
+                             juce::AudioBuffer<float>& dest,
+                             juce::String& destPath);
+
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
