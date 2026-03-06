@@ -197,6 +197,30 @@ void EnvelopeEditor::clearLayerSampleFlag (WaveLayer layer)
 }
 
 // =============================================================================
+// setAmpEnvelopes  –  bind per-layer amplitude envelopes
+// =============================================================================
+
+void EnvelopeEditor::setAmpEnvelopes (FlexibleEnvelope& transient,
+                                       FlexibleEnvelope& body,
+                                       FlexibleEnvelope& resonant,
+                                       FlexibleEnvelope& noise,
+                                       FlexibleEnvelope& /*room*/)
+{
+    ampEnvForLayer[static_cast<int> (WaveLayer::Transient)] = &transient;
+    ampEnvForLayer[static_cast<int> (WaveLayer::Body)]      = &body;
+    ampEnvForLayer[static_cast<int> (WaveLayer::Resonant)]  = &resonant;
+    ampEnvForLayer[static_cast<int> (WaveLayer::Noise)]     = &noise;
+    // Room shares WaveLayer::Body; PluginEditor swaps via setLayerAmpEnvelope.
+}
+
+void EnvelopeEditor::setLayerAmpEnvelope (WaveLayer layer, FlexibleEnvelope& env)
+{
+    const int idx = static_cast<int> (layer);
+    if (idx >= 0 && idx < kNumLayers)
+        ampEnvForLayer[idx] = &env;
+}
+
+// =============================================================================
 // computePointsHash  –  FNV-1a over all points for change detection
 // =============================================================================
 
@@ -486,36 +510,47 @@ void EnvelopeEditor::regenerateWaveform()
 
         const double sinVal = std::sin (juce::MathConstants<double>::twoPi * phase);
 
-        // ── Transient: sine at initial frequency × very fast decay ──────────
+        // Normalised position for amp envelope evaluation (0..1 over display)
+        const double ampNorm = (double) i / (double) (kWaveformSamples - 1);
+
+        // ── Transient: sine × transient amp envelope ────────────────────────
         if (! layerUsesSample[static_cast<int> (WaveLayer::Transient)])
         {
-            const double transAmp = std::exp (-t / transTauSec);
+            double transAmp = std::exp (-t / transTauSec);
+            if (ampEnvForLayer[static_cast<int> (WaveLayer::Transient)] != nullptr)
+                transAmp = ampEnvForLayer[static_cast<int> (WaveLayer::Transient)]->evaluate (ampNorm);
             layerBuffers[static_cast<int> (WaveLayer::Transient)][(size_t) i]
                 = (float) (sinVal * transAmp);
         }
 
-        // ── Body: sine with pitch envelope × body decay ─────────────────────
+        // ── Body: sine with pitch envelope × body amp envelope ──────────────
         if (! layerUsesSample[static_cast<int> (WaveLayer::Body)])
         {
-            const double bodyAmp = std::exp (-t / bodyTauSec);
+            double bodyAmpVal = std::exp (-t / bodyTauSec);
+            if (ampEnvForLayer[static_cast<int> (WaveLayer::Body)] != nullptr)
+                bodyAmpVal = ampEnvForLayer[static_cast<int> (WaveLayer::Body)]->evaluate (ampNorm);
             layerBuffers[static_cast<int> (WaveLayer::Body)][(size_t) i]
-                = (float) (sinVal * bodyAmp);
+                = (float) (sinVal * bodyAmpVal);
         }
 
-        // ── Resonant: sine at body frequency × medium decay ─────────────────
+        // ── Resonant: sine × resonant amp envelope ─────────────────────────
         if (! layerUsesSample[static_cast<int> (WaveLayer::Resonant)])
         {
-            const double resAmp = std::exp (-t / resTauSec);
+            double resAmpVal = std::exp (-t / resTauSec);
+            if (ampEnvForLayer[static_cast<int> (WaveLayer::Resonant)] != nullptr)
+                resAmpVal = ampEnvForLayer[static_cast<int> (WaveLayer::Resonant)]->evaluate (ampNorm);
             layerBuffers[static_cast<int> (WaveLayer::Resonant)][(size_t) i]
-                = (float) (sinVal * resAmp);
+                = (float) (sinVal * resAmpVal);
         }
 
-        // ── Noise: deterministic white noise × exponential decay ────────────
+        // ── Noise: white noise × noise amp envelope ─────────────────────────
         if (! layerUsesSample[static_cast<int> (WaveLayer::Noise)])
         {
-            const double noiseAmp = (double) noiseLevel * std::exp (-t / noiseTauSec);
+            double noiseAmpVal = (double) noiseLevel * std::exp (-t / noiseTauSec);
+            if (ampEnvForLayer[static_cast<int> (WaveLayer::Noise)] != nullptr)
+                noiseAmpVal = ampEnvForLayer[static_cast<int> (WaveLayer::Noise)]->evaluate (ampNorm) * (double) noiseLevel;
             layerBuffers[static_cast<int> (WaveLayer::Noise)][(size_t) i]
-                = (float) ((double) detNoise (i) * noiseAmp);
+                = (float) ((double) detNoise (i) * noiseAmpVal);
         }
     }
 
@@ -531,10 +566,6 @@ void EnvelopeEditor::regenerateWaveform()
 
     for (int layer = 0; layer < kNumLayers; ++layer)
     {
-        // Skip layers that use a loaded sample — paths already built by setLayerSampleData
-        if (layerUsesSample[layer])
-            continue;
-
         layerPaths[layer].clear();
 
         if (cols < 2 || plotW < 1.0f)
@@ -543,6 +574,10 @@ void EnvelopeEditor::regenerateWaveform()
         const auto& buf = layerBuffers[layer];
         const int n     = (int) buf.size();
         if (n < 2) continue;
+
+        // For sample layers, apply amp envelope scaling during path building
+        // (the raw sample buffer is preserved; synth layers already have envelope baked in)
+        const bool envScale = layerUsesSample[layer] && ampEnvForLayer[layer] != nullptr;
 
         // Build top edge (max values) left to right
         std::vector<float> topY (cols), botY (cols);
@@ -554,10 +589,20 @@ void EnvelopeEditor::regenerateWaveform()
 
             float lo = buf[(size_t) s0];
             float hi = lo;
+            if (envScale)
+            {
+                float env0 = (float) ampEnvForLayer[layer]->evaluate (
+                    (double) s0 / (double) (n - 1));
+                lo *= env0;
+                hi *= env0;
+            }
 
             for (int s = s0 + 1; s <= s1; ++s)
             {
-                const float v = buf[(size_t) s];
+                float v = buf[(size_t) s];
+                if (envScale)
+                    v *= (float) ampEnvForLayer[layer]->evaluate (
+                        (double) s / (double) (n - 1));
                 if (v < lo) lo = v;
                 if (v > hi) hi = v;
             }
@@ -585,10 +630,6 @@ void EnvelopeEditor::regenerateWaveform()
 
     for (int layer = 0; layer < kNumLayers; ++layer)
     {
-        // Skip layers that use a loaded sample — paths already built by setLayerSampleData
-        if (layerUsesSample[layer])
-            continue;
-
         simplePaths[layer].clear();
 
         if (plotW < 1.0f)
@@ -598,14 +639,20 @@ void EnvelopeEditor::regenerateWaveform()
         const int n     = (int) buf.size();
         if (n < 2) continue;
 
+        const bool envScale = layerUsesSample[layer] && ampEnvForLayer[layer] != nullptr;
+
         const int numPts = std::min (kSimplePoints, n);
 
-        // Downsample: pick evenly spaced samples
+        // Downsample: pick evenly spaced samples (with envelope scaling for sample layers)
         std::vector<float> samples (numPts);
         for (int i = 0; i < numPts; ++i)
         {
             const int srcIdx = i * (n - 1) / (numPts - 1);
-            samples[(size_t) i] = buf[(size_t) srcIdx];
+            float v = buf[(size_t) srcIdx];
+            if (envScale)
+                v *= (float) ampEnvForLayer[layer]->evaluate (
+                    (double) srcIdx / (double) (n - 1));
+            samples[(size_t) i] = v;
         }
 
         // Two passes of 3-tap moving average for gentle smoothing

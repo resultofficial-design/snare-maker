@@ -39,6 +39,7 @@ public:
     // Dynamic N-point envelopes (shared with EnvelopeEditor for direct access).
     // Points are edited by the UI; audio thread reads under envelopeLock.
     FlexibleEnvelope pitchEnvelope;
+    FlexibleEnvelope transientAmpEnvelope;
     FlexibleEnvelope bodyAmpEnvelope;
     FlexibleEnvelope noiseAmpEnvelope;
     FlexibleEnvelope resonantAmpEnvelope;

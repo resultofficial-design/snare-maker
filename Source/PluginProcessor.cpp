@@ -35,6 +35,8 @@ SnareMakerAudioProcessor::SnareMakerAudioProcessor()
     // pitchEnvelope uses default ctor: {0,0}, {0.1,1.0}, {1,0} (pitch sweep)
 
     // Amplitude envelopes: start at 1.0, decay to 0.0
+    transientAmpEnvelope = FlexibleEnvelope ({
+        { 0.0f, 1.0f, 0.8f }, { 0.05f, 0.6f, 0.6f }, { 1.0f, 0.0f, 0.0f } });
     bodyAmpEnvelope = FlexibleEnvelope ({
         { 0.0f, 1.0f, 0.6f }, { 0.3f, 0.4f, 0.6f }, { 1.0f, 0.0f, 0.0f } });
     noiseAmpEnvelope = FlexibleEnvelope ({
@@ -610,10 +612,11 @@ void SnareMakerAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 
         {
             juce::SpinLock::ScopedLockType lock (envelopeLock);
-            saveEnvelope ("PitchEnvelope",    pitchEnvelope);
-            saveEnvelope ("BodyAmpEnvelope",  bodyAmpEnvelope);
-            saveEnvelope ("NoiseAmpEnvelope", noiseAmpEnvelope);
-            saveEnvelope ("RoomAmpEnvelope",  roomAmpEnvelope);
+            saveEnvelope ("PitchEnvelope",         pitchEnvelope);
+            saveEnvelope ("TransientAmpEnvelope", transientAmpEnvelope);
+            saveEnvelope ("BodyAmpEnvelope",      bodyAmpEnvelope);
+            saveEnvelope ("NoiseAmpEnvelope",     noiseAmpEnvelope);
+            saveEnvelope ("RoomAmpEnvelope",      roomAmpEnvelope);
         }
         copyXmlToBinary (*xml, destData);
     }
@@ -644,10 +647,11 @@ void SnareMakerAudioProcessor::setStateInformation (const void* data, int sizeIn
         };
 
         juce::SpinLock::ScopedLockType lock (envelopeLock);
-        loadEnvelope ("PitchEnvelope",    pitchEnvelope);
-        loadEnvelope ("BodyAmpEnvelope",  bodyAmpEnvelope);
-        loadEnvelope ("NoiseAmpEnvelope", noiseAmpEnvelope);
-        loadEnvelope ("RoomAmpEnvelope",  roomAmpEnvelope);
+        loadEnvelope ("PitchEnvelope",         pitchEnvelope);
+        loadEnvelope ("TransientAmpEnvelope", transientAmpEnvelope);
+        loadEnvelope ("BodyAmpEnvelope",      bodyAmpEnvelope);
+        loadEnvelope ("NoiseAmpEnvelope",     noiseAmpEnvelope);
+        loadEnvelope ("RoomAmpEnvelope",      roomAmpEnvelope);
     }
 }
 

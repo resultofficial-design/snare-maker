@@ -280,6 +280,11 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     envelopeEditor.connectToParameters (audioProcessor.apvts, audioProcessor.pitchEnvelope,
                                         audioProcessor.envelopeLock,
                                         audioProcessor.waveformDisplayMode);
+    envelopeEditor.setAmpEnvelopes (audioProcessor.transientAmpEnvelope,
+                                     audioProcessor.bodyAmpEnvelope,
+                                     audioProcessor.resonantAmpEnvelope,
+                                     audioProcessor.noiseAmpEnvelope,
+                                     audioProcessor.roomAmpEnvelope);
     addAndMakeVisible (envelopeEditor);
 
     envelopeEditor.onSampleDropped = [this] (const juce::String& filePath)
@@ -507,19 +512,22 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     else if (showNoise)     envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Noise);
     else if (showRoom)      envelopeEditor.setActiveLayer (EnvelopeEditor::WaveLayer::Body);
 
-    // Body and Room share WaveLayer::Body — manage sample flag on tab switch
+    // Body and Room share WaveLayer::Body — manage sample flag + amp envelope on tab switch
     if (showBody)
     {
-        // Clear any Room sample from the Body layer so synth waveform regenerates
         envelopeEditor.clearLayerSampleFlag (EnvelopeEditor::WaveLayer::Body);
+        envelopeEditor.setLayerAmpEnvelope (EnvelopeEditor::WaveLayer::Body,
+                                             audioProcessor.bodyAmpEnvelope);
     }
-    else if (showRoom && audioProcessor.roomIRBuffer.getNumSamples() > 0)
+    else if (showRoom)
     {
-        // Re-apply room IR sample to the Body layer
-        envelopeEditor.setLayerSampleData (
-            EnvelopeEditor::WaveLayer::Body,
-            audioProcessor.roomIRBuffer.getReadPointer (0),
-            audioProcessor.roomIRBuffer.getNumSamples());
+        envelopeEditor.setLayerAmpEnvelope (EnvelopeEditor::WaveLayer::Body,
+                                             audioProcessor.roomAmpEnvelope);
+        if (audioProcessor.roomIRBuffer.getNumSamples() > 0)
+            envelopeEditor.setLayerSampleData (
+                EnvelopeEditor::WaveLayer::Body,
+                audioProcessor.roomIRBuffer.getReadPointer (0),
+                audioProcessor.roomIRBuffer.getNumSamples());
     }
 
     // Transient / Resonant / Noise / Room: 80% width (side panel fills the rest)
@@ -585,7 +593,7 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
     }
 
     // Default envelope for each tab
-    if (showTransient)     setEnvMode (EnvMode::BodyAmp);
+    if (showTransient)     setEnvMode (EnvMode::TransientAmp);
     else if (showBody)     setEnvMode (EnvMode::Pitch);
     else if (showNoise)    setEnvMode (EnvMode::NoiseAmp);
     else if (showResonant) setEnvMode (EnvMode::ResonantAmp);
@@ -623,11 +631,12 @@ void SnareMakerAudioProcessorEditor::setEnvMode (EnvMode mode)
 
     switch (mode)
     {
-        case EnvMode::Pitch:       envelopeEditor.setEnvelope (audioProcessor.pitchEnvelope);       break;
-        case EnvMode::BodyAmp:     envelopeEditor.setEnvelope (audioProcessor.bodyAmpEnvelope);     break;
-        case EnvMode::NoiseAmp:    envelopeEditor.setEnvelope (audioProcessor.noiseAmpEnvelope);    break;
-        case EnvMode::ResonantAmp: envelopeEditor.setEnvelope (audioProcessor.resonantAmpEnvelope); break;
-        case EnvMode::RoomAmp:     envelopeEditor.setEnvelope (audioProcessor.roomAmpEnvelope);     break;
+        case EnvMode::Pitch:        envelopeEditor.setEnvelope (audioProcessor.pitchEnvelope);        break;
+        case EnvMode::TransientAmp: envelopeEditor.setEnvelope (audioProcessor.transientAmpEnvelope); break;
+        case EnvMode::BodyAmp:      envelopeEditor.setEnvelope (audioProcessor.bodyAmpEnvelope);      break;
+        case EnvMode::NoiseAmp:     envelopeEditor.setEnvelope (audioProcessor.noiseAmpEnvelope);     break;
+        case EnvMode::ResonantAmp:  envelopeEditor.setEnvelope (audioProcessor.resonantAmpEnvelope);  break;
+        case EnvMode::RoomAmp:      envelopeEditor.setEnvelope (audioProcessor.roomAmpEnvelope);      break;
     }
 }
 

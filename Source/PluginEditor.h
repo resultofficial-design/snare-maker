@@ -125,7 +125,7 @@ private:
     juce::Rectangle<int>       transientWaveBounds;
 
     // ── Envelope mode buttons (below envelope editor) ────────────────────────
-    enum class EnvMode { Pitch, BodyAmp, NoiseAmp, ResonantAmp, RoomAmp };
+    enum class EnvMode { Pitch, TransientAmp, BodyAmp, NoiseAmp, ResonantAmp, RoomAmp };
     EnvMode envMode { EnvMode::Pitch };
 
     juce::Rectangle<int> envModeBounds;   // hit-test for AMP|PITCH selector

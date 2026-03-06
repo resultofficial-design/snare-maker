@@ -55,6 +55,16 @@ public:
     // Clear the sample flag for a layer so regenerateWaveform() produces synth output again.
     void clearLayerSampleFlag (WaveLayer layer);
 
+    // Bind per-layer amplitude envelopes (each shapes its layer's waveform preview).
+    void setAmpEnvelopes (FlexibleEnvelope& transient,
+                          FlexibleEnvelope& body,
+                          FlexibleEnvelope& resonant,
+                          FlexibleEnvelope& noise,
+                          FlexibleEnvelope& room);
+
+    // Override a single layer's amp envelope (used for Body/Room layer sharing).
+    void setLayerAmpEnvelope (WaveLayer layer, FlexibleEnvelope& env);
+
     void paint     (juce::Graphics&) override;
     void resized   () override;
 
@@ -116,6 +126,7 @@ private:
     juce::Path         layerPaths      [kNumLayers];   // TRUE paths (full detail)
     juce::Path         simplePaths     [kNumLayers];   // SIMPLE paths (smoothed RMS)
     bool               layerUsesSample [kNumLayers] {};  // true = loaded sample, skip synth regen
+    FlexibleEnvelope*  ampEnvForLayer  [kNumLayers] {};  // per-layer amp envelopes (not owned)
     WaveLayer          activeLayer { WaveLayer::Body };
 
     // Pointer to global display mode (owned by processor, 0=Simple, 1=True)
