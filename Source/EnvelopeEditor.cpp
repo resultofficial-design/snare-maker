@@ -605,7 +605,10 @@ void EnvelopeEditor::regenerateWaveform()
         const bool envScale = layerUsesSample[layer] && ampEnvForLayer[layer] != nullptr;
         const float volScale = layerVol[layer];
 
-        // Build top edge (max values) left to right
+        // Build symmetric peak-envelope per pixel column.
+        // Uses the absolute peak amplitude (max of |min|, |max|) so the
+        // display shows only the amplitude envelope, not raw oscillation
+        // phase.  This eliminates visual beating between layers.
         std::vector<float> topY (cols), botY (cols);
 
         for (int c = 0; c < cols; ++c)
@@ -622,7 +625,6 @@ void EnvelopeEditor::regenerateWaveform()
                 lo *= env0;
                 hi *= env0;
             }
-            // Apply volume scaling to sample layers (synth layers already have it baked in)
             if (layerUsesSample[layer])
             {
                 lo *= volScale;
@@ -641,8 +643,10 @@ void EnvelopeEditor::regenerateWaveform()
                 if (v > hi) hi = v;
             }
 
-            topY[(size_t) c] = plotCY - hi * halfH;
-            botY[(size_t) c] = plotCY - lo * halfH;
+            // Symmetric envelope: peak absolute amplitude mirrored around centre
+            const float peakAbs = std::max (std::abs (lo), std::abs (hi));
+            topY[(size_t) c] = plotCY - peakAbs * halfH;
+            botY[(size_t) c] = plotCY + peakAbs * halfH;
         }
 
         // Top edge L→R
@@ -657,9 +661,10 @@ void EnvelopeEditor::regenerateWaveform()
         layerPaths[layer].closeSubPath();
     }
 
-    // ── Build SIMPLE paths (peak-sampled per pixel, like TRUE but as a line) ──
-    // Uses the same min/max scanning as TRUE paths to eliminate aliasing,
-    // then draws the midpoint (avg of min/max) as a smooth line.
+    // ── Build SIMPLE paths (peak amplitude envelope line) ──────────────────
+    // Draws the positive peak-envelope as a line (phase-independent).
+    // Uses the same absolute-peak approach as TRUE paths to eliminate
+    // visual beating between layers with different frequencies.
 
     for (int layer = 0; layer < kNumLayers; ++layer)
     {
@@ -675,8 +680,6 @@ void EnvelopeEditor::regenerateWaveform()
         const bool envScale = layerUsesSample[layer] && ampEnvForLayer[layer] != nullptr;
         const float volScale = layerVol[layer];
 
-        // Peak-sample per pixel column, then draw midpoint line
-        simplePaths[layer].startNewSubPath (plotL, plotCY);
         bool started = false;
 
         for (int c = 0; c < cols; ++c)
@@ -711,9 +714,10 @@ void EnvelopeEditor::regenerateWaveform()
                 if (v > hi) hi = v;
             }
 
-            const float mid = (lo + hi) * 0.5f;
+            // Peak absolute amplitude — phase-independent envelope
+            const float peakAbs = std::max (std::abs (lo), std::abs (hi));
             const float px  = plotL + (float) c;
-            const float py  = plotCY - mid * halfH;
+            const float py  = plotCY - peakAbs * halfH;
 
             if (! started)
             {
@@ -739,7 +743,8 @@ void EnvelopeEditor::paintWaveform (juce::Graphics& g,
     const int activeIdx = static_cast<int> (activeLayer);
     const bool isSimple = (globalDisplayMode != nullptr && globalDisplayMode->load() == 0);
 
-    // Draw inactive layers first (dimmed), then active layer on top (brighter)
+    // Draw inactive layers first (dimmed), then active layer on top (brighter).
+    // All layers use semi-transparent fill + outline so no layer fully hides another.
     for (int pass = 0; pass < 2; ++pass)
     {
         for (int i = 0; i < kNumLayers; ++i)
@@ -752,23 +757,37 @@ void EnvelopeEditor::paintWaveform (juce::Graphics& g,
             if ((pass == 0) == isActive)
                 continue;   // pass 0 = inactive only, pass 1 = active only
 
-            const float alpha = isActive ? 1.0f : 0.45f;
-            g.setColour (juce::Colour (kLayerColours[i]).withAlpha (alpha));
+            const juce::Colour base (kLayerColours[i]);
+            const float fillAlpha   = isActive ? 0.35f : 0.15f;
+            const float strokeAlpha = isActive ? 0.90f : 0.45f;
+            const float strokeW     = isActive ? 1.5f  : 1.0f;
 
             if (isSimple)
             {
-                // SIMPLE: stroke the downsampled line path (oscillating waveform)
+                // SIMPLE: stroke the envelope line path
                 if (! simplePaths[i].isEmpty())
+                {
+                    g.setColour (base.withAlpha (strokeAlpha));
                     g.strokePath (simplePaths[i],
-                                  juce::PathStrokeType (1.5f,
+                                  juce::PathStrokeType (strokeW,
                                       juce::PathStrokeType::curved,
                                       juce::PathStrokeType::rounded));
+                }
             }
             else
             {
-                // TRUE: fill the min/max closed path (full detail)
+                // TRUE: semi-transparent fill + outline stroke
                 if (! layerPaths[i].isEmpty())
+                {
+                    g.setColour (base.withAlpha (fillAlpha));
                     g.fillPath (layerPaths[i]);
+
+                    g.setColour (base.withAlpha (strokeAlpha));
+                    g.strokePath (layerPaths[i],
+                                  juce::PathStrokeType (strokeW,
+                                      juce::PathStrokeType::curved,
+                                      juce::PathStrokeType::rounded));
+                }
             }
         }
     }
