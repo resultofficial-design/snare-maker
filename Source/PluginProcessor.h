@@ -97,6 +97,13 @@ private:
     std::atomic<float>* pResonantLevel  { nullptr };
     std::atomic<float>* pRoomLevel      { nullptr };
 
+    // Per-layer width (Phase 10)
+    std::atomic<float>* pTransientWidth { nullptr };
+    std::atomic<float>* pBodyWidth      { nullptr };
+    std::atomic<float>* pResonantWidth  { nullptr };
+    std::atomic<float>* pNoiseWidth     { nullptr };
+    std::atomic<float>* pRoomWidth      { nullptr };
+
     // Noise ADSR (Phase 2b)
     std::atomic<float>* pNoiseAttack   { nullptr };
     std::atomic<float>* pNoiseDecay    { nullptr };
@@ -158,6 +165,32 @@ private:
     BiquadFilter noiseBrightFilter;   // high-shelf tilt EQ
 
     juce::Random random;
+
+    // ── Per-layer stereo width processing (Phase 10) ────────────────────
+    // Crossover at ~200 Hz splits each layer into low (mono) + high (width-processed).
+    // Small decorrelation delay on the high band creates stereo content from mono sources.
+    static constexpr int kWidthLayers     = 5;   // transient, body, resonant, noise, room
+    static constexpr int kDecoDelayMax    = 64;  // max decorrelation delay samples
+    static constexpr float kCrossoverFreq = 200.0f;
+
+    struct WidthState
+    {
+        BiquadFilter lpFilter;
+        BiquadFilter hpFilter;
+        float decoBuffer[kDecoDelayMax] {};
+        int   decoWritePos = 0;
+
+        void reset()
+        {
+            lpFilter.reset();
+            hpFilter.reset();
+            std::memset (decoBuffer, 0, sizeof (decoBuffer));
+            decoWritePos = 0;
+        }
+    };
+
+    WidthState widthStates[kWidthLayers];
+    int decoDelaySamples = 13;   // set in prepareToPlay (~0.3ms)
 
     // ── Private helpers (Phase 2c modular refactoring) ────────────────────
     void resetVoiceState ();

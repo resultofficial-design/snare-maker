@@ -209,6 +209,18 @@ private:
     OutputValueBubble volumeBubble;
     void updateVolumeBubble();
 
+    // ── Per-layer width sliders (one per tab, in side-panel containers) ───
+    juce::Slider transientWidthKnob;
+    juce::Slider bodyWidthKnob;
+    juce::Slider resonantWidthKnob;
+    juce::Slider noiseWidthKnob;
+    juce::Slider roomWidthKnob;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> transientWidthAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> bodyWidthAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> resonantWidthAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> noiseWidthAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> roomWidthAttachment;
+
     // ── Output fader ─────────────────────────────────────────────────────────
     juce::Slider outputSlider;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> outputAttachment;

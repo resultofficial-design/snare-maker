@@ -460,6 +460,34 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     layerVolumeKnob.onDragEnd     = [this] { volumeBubble.setVisible (false); };
     layerVolumeKnob.onValueChange = [this] { if (volumeBubble.isVisible()) updateVolumeBubble(); };
 
+    // ── Per-layer width knobs (in side-panel containers) ───────────────────
+    {
+        auto initWidthKnob = [&] (juce::Slider& knob)
+        {
+            knob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+            knob.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+            knob.setRange (0.0, 1.0, 0.001);
+            knob.setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xff888899));
+            addChildComponent (knob);
+        };
+        initWidthKnob (transientWidthKnob);
+        initWidthKnob (bodyWidthKnob);
+        initWidthKnob (resonantWidthKnob);
+        initWidthKnob (noiseWidthKnob);
+        initWidthKnob (roomWidthKnob);
+
+        transientWidthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            audioProcessor.apvts, "transientWidth", transientWidthKnob);
+        bodyWidthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            audioProcessor.apvts, "bodyWidth", bodyWidthKnob);
+        resonantWidthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            audioProcessor.apvts, "resonantWidth", resonantWidthKnob);
+        noiseWidthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            audioProcessor.apvts, "noiseWidth", noiseWidthKnob);
+        roomWidthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+            audioProcessor.apvts, "roomWidth", roomWidthKnob);
+    }
+
     // ── Phase offset fader (BODY tab, inside envelope container left side) ──
     phaseOffsetSlider.setSliderStyle (juce::Slider::LinearVertical);
     phaseOffsetSlider.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
@@ -560,6 +588,14 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
 
     // Envelope mode buttons
     noiseAmpBtn .setVisible (false);
+
+    // Per-layer width knobs: each visible only on its tab
+    // Body has no side-panel container; its width param is automation-only.
+    transientWidthKnob.setVisible (showTransient);
+    bodyWidthKnob.setVisible (false);
+    resonantWidthKnob.setVisible (showResonant);
+    noiseWidthKnob.setVisible (showNoise);
+    roomWidthKnob.setVisible (showRoom);
 
     // Phase offset fader: visible only on Body tab
     phaseOffsetSlider.setVisible (showBody);
@@ -1661,7 +1697,13 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
                             ks + 20, labelH, juce::Justification::centred, false);
             };
 
-            drawPlaceholderKnob (knob1X, knobY, knobSize, "Width");
+            // Width knob (real slider)
+            transientWidthKnob.setBounds (knob1X, knobY, knobSize, knobSize);
+            g.setColour (kTextMuted);
+            g.setFont (lnf.interRegularFont (9.0f));
+            g.drawText ("Width", knob1X - 10, knobY + knobSize + 2,
+                        knobSize + 20, labelH, juce::Justification::centred, false);
+
             drawPlaceholderKnob (knob2X, knobY, knobSize, "Pitch");
 
             // Filter section: handled by transientFilterVis component
@@ -1789,7 +1831,13 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             drawPlaceholderKnob (k1X, knobY, knobSize, "Size");
             drawPlaceholderKnob (k2X, knobY, knobSize, "Decay");
             drawPlaceholderKnob (k1X, row2Y, knobSize, "Pre-Delay");
-            drawPlaceholderKnob (k2X, row2Y, knobSize, "Width");
+
+            // Width knob (real slider)
+            roomWidthKnob.setBounds (k2X, row2Y, knobSize, knobSize);
+            g.setColour (kTextMuted);
+            g.setFont (lnf.interRegularFont (9.0f));
+            g.drawText ("Width", k2X - 10, row2Y + knobSize + 2,
+                        knobSize + 20, labelH, juce::Justification::centred, false);
 
             // Filter section: handled by roomFilterVis component
         }
@@ -1915,7 +1963,14 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
 
             drawPlaceholderKnob (k1X, knobY, knobSize, "Pitch");
             drawPlaceholderKnob (k2X, knobY, knobSize, "Decay");
-            drawPlaceholderKnob (k1X, row2Y, knobSize, "Width");
+
+            // Width knob (real slider)
+            resonantWidthKnob.setBounds (k1X, row2Y, knobSize, knobSize);
+            g.setColour (kTextMuted);
+            g.setFont (lnf.interRegularFont (9.0f));
+            g.drawText ("Width", k1X - 10, row2Y + knobSize + 2,
+                        knobSize + 20, labelH, juce::Justification::centred, false);
+
             drawPlaceholderKnob (k2X, row2Y, knobSize, "Drive");
 
             // ── FOLLOW BODY toggle button ─────────────────────────────
@@ -2076,7 +2131,13 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
                                 ks + 20, labelH, juce::Justification::centred, false);
                 };
 
-                drawPlaceholderKnob (knob1X, knobY, knobSize, "Width");
+                // Width knob (real slider)
+                noiseWidthKnob.setBounds (knob1X, knobY, knobSize, knobSize);
+                g.setColour (kTextMuted);
+                g.setFont (lnf.interRegularFont (9.0f));
+                g.drawText ("Width", knob1X - 10, knobY + knobSize + 2,
+                            knobSize + 20, labelH, juce::Justification::centred, false);
+
                 drawPlaceholderKnob (knob2X, knobY, knobSize, "Pan");
 
                 // Filter section: handled by NoiseFilterVisualizer component
@@ -2201,7 +2262,13 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
                 drawPlaceholderKnob (k1X, knobY2, knobSize, "Start");
                 drawPlaceholderKnob (k2X, knobY2, knobSize, "Length");
                 drawPlaceholderKnob (k1X, row2Y,  knobSize, "Pitch");
-                drawPlaceholderKnob (k2X, row2Y,  knobSize, "Width");
+
+                // Width knob (real slider) — shared with GEN mode
+                noiseWidthKnob.setBounds (k2X, row2Y, knobSize, knobSize);
+                g.setColour (kTextMuted);
+                g.setFont (lnf.interRegularFont (9.0f));
+                g.drawText ("Width", k2X - 10, row2Y + knobSize + 2,
+                            knobSize + 20, labelH, juce::Justification::centred, false);
 
                 // Filter section: handled by noiseSampleFilterVis component
             }

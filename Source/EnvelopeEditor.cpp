@@ -1,4 +1,5 @@
 #include "EnvelopeEditor.h"
+#include "BiquadFilter.h"
 
 // =============================================================================
 // Constructor / Destructor
@@ -44,6 +45,12 @@ void EnvelopeEditor::connectToParameters (juce::AudioProcessorValueTreeState& ap
     layerVolumes[static_cast<int> (WaveLayer::Body)]      = apvts.getRawParameterValue ("bodyLevel");
     layerVolumes[static_cast<int> (WaveLayer::Resonant)]  = apvts.getRawParameterValue ("resonantLevel");
     layerVolumes[static_cast<int> (WaveLayer::Noise)]     = apvts.getRawParameterValue ("noiseLevel");
+
+    // Per-layer width pointers for stereo waveform preview
+    layerWidths[static_cast<int> (WaveLayer::Transient)] = apvts.getRawParameterValue ("transientWidth");
+    layerWidths[static_cast<int> (WaveLayer::Body)]      = apvts.getRawParameterValue ("bodyWidth");
+    layerWidths[static_cast<int> (WaveLayer::Resonant)]  = apvts.getRawParameterValue ("resonantWidth");
+    layerWidths[static_cast<int> (WaveLayer::Noise)]     = apvts.getRawParameterValue ("noiseWidth");
 
     // Wire SIMPLE/TRUE toggle to global display mode
     modeToggle.setMode (displayMode.load() == 0
@@ -226,12 +233,15 @@ void EnvelopeEditor::timerCallback()
 
         const uint64_t currentHash = computePointsHash();
 
-        // Check per-layer volume changes
+        // Check per-layer volume and width changes
         bool volChanged = false;
         for (int l = 0; l < kNumLayers; ++l)
         {
             const float v = (layerVolumes[l] != nullptr) ? layerVolumes[l]->load() : 1.0f;
             if (std::abs (v - lastWfVolumes[l]) > 0.005f)
+                volChanged = true;
+            const float w = (layerWidths[l] != nullptr) ? layerWidths[l]->load() : 0.5f;
+            if (std::abs (w - lastWfWidths[l]) > 0.005f)
                 volChanged = true;
         }
 
@@ -496,8 +506,11 @@ void EnvelopeEditor::regenerateWaveform()
     const double dt = (double) waveformDuration / (double) kWaveformSamples;
 
     for (int i = 0; i < kNumLayers; ++i)
+    {
         if (! layerUsesSample[i])
             layerBuffers[i].resize (kWaveformSamples);
+        layerBuffersR[i].resize (kWaveformSamples);
+    }
 
     // Deterministic pseudo-random noise: integer hash -> float in [-1, +1].
     auto detNoise = [] (int idx) -> float
@@ -512,12 +525,15 @@ void EnvelopeEditor::regenerateWaveform()
     // Start phase matches engine: phase = phaseOffsetDeg / 360
     double phase = (double) phaseOffDeg / 360.0;
 
-    // Read per-layer volume levels for waveform scaling
+    // Read per-layer volume and width levels for waveform scaling
     float layerVol[kNumLayers];
+    float layerWid[kNumLayers];
     for (int l = 0; l < kNumLayers; ++l)
     {
         layerVol[l] = (layerVolumes[l] != nullptr) ? layerVolumes[l]->load() : 1.0f;
         lastWfVolumes[l] = layerVol[l];
+        layerWid[l] = (layerWidths[l] != nullptr) ? layerWidths[l]->load() : 0.5f;
+        lastWfWidths[l] = layerWid[l];
     }
 
     for (int i = 0; i < kWaveformSamples; ++i)
@@ -579,6 +595,62 @@ void EnvelopeEditor::regenerateWaveform()
         }
     }
 
+    // ── Apply stereo width processing per layer to create R channel ─────────
+    // Same algorithm as processor: crossover at ~200Hz, decorrelation delay,
+    // mid/side scaling.  Preview sample rate is kWaveformSamples / waveformDuration.
+    {
+        const double previewSR = (double) kWaveformSamples / (double) waveformDuration;
+        const int decoD = juce::jlimit (1, 63, (int) (previewSR * 0.0003));
+
+        for (int layer = 0; layer < kNumLayers; ++layer)
+        {
+            const float width = layerWid[layer];
+            const auto& srcBuf = layerBuffers[layer];
+            auto& dstBuf = layerBuffersR[layer];
+            const int n = (int) srcBuf.size();
+            if (n < 2) continue;
+
+            // If width is exactly 0.5 (natural/mono default), L == R → skip
+            if (std::abs (width - 0.5f) < 0.001f)
+            {
+                for (int i = 0; i < n; ++i)
+                    dstBuf[(size_t) i] = srcBuf[(size_t) i];
+                continue;
+            }
+
+            // Set up crossover filters for this layer's preview
+            BiquadFilter lpf, hpf;
+            lpf.setLowPass  (previewSR, 200.0, 0.707);
+            hpf.setHighPass (previewSR, 200.0, 0.707);
+
+            // Decorrelation delay buffer
+            float decoBuf[64] {};
+            int decoWr = 0;
+
+            const float sideGain = width * 2.0f;
+
+            for (int i = 0; i < n; ++i)
+            {
+                const float mono = srcBuf[(size_t) i];
+                const float low  = lpf.process (mono);
+                const float high = hpf.process (mono);
+
+                decoBuf[decoWr] = high;
+                const int readPos = (decoWr - decoD + 64) & 63;
+                const float highDeco = decoBuf[readPos];
+                decoWr = (decoWr + 1) & 63;
+
+                const float mid  = (high + highDeco) * 0.5f;
+                const float side = (high - highDeco) * 0.5f;
+
+                // L channel: low + mid + side * sideGain  (overwrite mono buffer)
+                layerBuffers[layer][(size_t) i] = low + mid + side * sideGain;
+                // R channel
+                dstBuf[(size_t) i] = low + mid - side * sideGain;
+            }
+        }
+    }
+
     // ── Build closed juce::Path per layer for filled rendering ──────────────
     const float plotL  = kPadX;
     const float plotR  = (float) getWidth() - kPadX;
@@ -592,23 +664,23 @@ void EnvelopeEditor::regenerateWaveform()
     for (int layer = 0; layer < kNumLayers; ++layer)
     {
         layerPaths[layer].clear();
+        layerPathsR[layer].clear();
 
         if (cols < 2 || plotW < 1.0f)
             continue;
 
-        const auto& buf = layerBuffers[layer];
-        const int n     = (int) buf.size();
+        const auto& bufL = layerBuffers[layer];
+        const auto& bufR = layerBuffersR[layer];
+        const int n     = (int) bufL.size();
         if (n < 2) continue;
 
         // For sample layers, apply amp envelope scaling during path building
-        // (the raw sample buffer is preserved; synth layers already have envelope baked in)
         const bool envScale = layerUsesSample[layer] && ampEnvForLayer[layer] != nullptr;
         const float volScale = layerVol[layer];
 
-        // Build symmetric peak-envelope per pixel column.
-        // Uses the absolute peak amplitude (max of |min|, |max|) so the
-        // display shows only the amplitude envelope, not raw oscillation
-        // phase.  This eliminates visual beating between layers.
+        // Build peak-envelope per pixel column: top from L, bottom from R.
+        // When width=0.5 (mono), L==R → symmetric display as before.
+        // When width diverges, top/bottom become asymmetric → visual stereo.
         std::vector<float> topY (cols), botY (cols);
 
         for (int c = 0; c < cols; ++c)
@@ -616,37 +688,32 @@ void EnvelopeEditor::regenerateWaveform()
             const int s0 = c * n / cols;
             const int s1 = std::min (n - 1, (c + 1) * n / cols);
 
-            float lo = buf[(size_t) s0];
-            float hi = lo;
-            if (envScale)
-            {
-                float env0 = (float) ampEnvForLayer[layer]->evaluate (
-                    (double) s0 / (double) (n - 1));
-                lo *= env0;
-                hi *= env0;
-            }
-            if (layerUsesSample[layer])
-            {
-                lo *= volScale;
-                hi *= volScale;
-            }
+            float peakL = 0.0f, peakR = 0.0f;
 
-            for (int s = s0 + 1; s <= s1; ++s)
+            for (int s = s0; s <= s1; ++s)
             {
-                float v = buf[(size_t) s];
+                float vL = bufL[(size_t) s];
+                float vR = bufR[(size_t) s];
+
                 if (envScale)
-                    v *= (float) ampEnvForLayer[layer]->evaluate (
+                {
+                    float env = (float) ampEnvForLayer[layer]->evaluate (
                         (double) s / (double) (n - 1));
+                    vL *= env;
+                    vR *= env;
+                }
                 if (layerUsesSample[layer])
-                    v *= volScale;
-                if (v < lo) lo = v;
-                if (v > hi) hi = v;
+                {
+                    vL *= volScale;
+                    vR *= volScale;
+                }
+
+                peakL = std::max (peakL, std::abs (vL));
+                peakR = std::max (peakR, std::abs (vR));
             }
 
-            // Symmetric envelope: peak absolute amplitude mirrored around centre
-            const float peakAbs = std::max (std::abs (lo), std::abs (hi));
-            topY[(size_t) c] = plotCY - peakAbs * halfH;
-            botY[(size_t) c] = plotCY + peakAbs * halfH;
+            topY[(size_t) c] = plotCY - peakL * halfH;
+            botY[(size_t) c] = plotCY + peakR * halfH;
         }
 
         // Top edge L→R
@@ -664,17 +731,20 @@ void EnvelopeEditor::regenerateWaveform()
     // ── Build SIMPLE paths (decimated oscillation line, no fill) ───────────
     // Sparsely sample the waveform buffer to show the large-scale wave shape
     // with smooth EMA filtering to remove micro-jitter.
+    // Builds both L and R paths for stereo width visualisation.
     constexpr int kSimplePoints = 256;
 
     for (int layer = 0; layer < kNumLayers; ++layer)
     {
         simplePaths[layer].clear();
+        simplePathsR[layer].clear();
 
         if (plotW < 1.0f)
             continue;
 
-        const auto& buf = layerBuffers[layer];
-        const int n     = (int) buf.size();
+        const auto& bufL = layerBuffers[layer];
+        const auto& bufR = layerBuffersR[layer];
+        const int n     = (int) bufL.size();
         if (n < 2) continue;
 
         const bool envScale = layerUsesSample[layer] && ampEnvForLayer[layer] != nullptr;
@@ -682,32 +752,49 @@ void EnvelopeEditor::regenerateWaveform()
 
         const int numPts = std::min (kSimplePoints, n);
 
-        // Sparse sample + apply envelope/volume scaling
-        std::vector<float> samples (numPts);
+        std::vector<float> samplesL (numPts), samplesR (numPts);
         for (int i = 0; i < numPts; ++i)
         {
             const int srcIdx = i * (n - 1) / (numPts - 1);
-            float v = buf[(size_t) srcIdx];
+            float vL = bufL[(size_t) srcIdx];
+            float vR = bufR[(size_t) srcIdx];
             if (envScale)
-                v *= (float) ampEnvForLayer[layer]->evaluate (
+            {
+                float env = (float) ampEnvForLayer[layer]->evaluate (
                     (double) srcIdx / (double) (n - 1));
+                vL *= env;
+                vR *= env;
+            }
             if (layerUsesSample[layer])
-                v *= volScale;
-            samples[(size_t) i] = v;
+            {
+                vL *= volScale;
+                vR *= volScale;
+            }
+            samplesL[(size_t) i] = vL;
+            samplesR[(size_t) i] = vR;
         }
 
-        // EMA smoothing (keeps oscillations, removes micro-jitter)
+        // EMA smoothing
         constexpr float kSmooth = 0.4f;
         for (int i = 1; i < numPts; ++i)
-            samples[(size_t) i] = samples[(size_t) (i - 1)] * (1.0f - kSmooth)
-                                  + samples[(size_t) i] * kSmooth;
+        {
+            samplesL[(size_t) i] = samplesL[(size_t) (i - 1)] * (1.0f - kSmooth)
+                                   + samplesL[(size_t) i] * kSmooth;
+            samplesR[(size_t) i] = samplesR[(size_t) (i - 1)] * (1.0f - kSmooth)
+                                   + samplesR[(size_t) i] * kSmooth;
+        }
 
-        // Build open line path (centred around plotCY)
+        // Build open line paths (L above centre, R below centre)
         const float step = plotW / (float) (numPts - 1);
-        simplePaths[layer].startNewSubPath (plotL, plotCY - samples[0] * halfH);
+        simplePaths[layer].startNewSubPath (plotL, plotCY - samplesL[0] * halfH);
+        simplePathsR[layer].startNewSubPath (plotL, plotCY - samplesR[0] * halfH);
         for (int i = 1; i < numPts; ++i)
+        {
             simplePaths[layer].lineTo (plotL + (float) i * step,
-                                       plotCY - samples[(size_t) i] * halfH);
+                                        plotCY - samplesL[(size_t) i] * halfH);
+            simplePathsR[layer].lineTo (plotL + (float) i * step,
+                                         plotCY - samplesR[(size_t) i] * halfH);
+        }
     }
 }
 
@@ -743,7 +830,7 @@ void EnvelopeEditor::paintWaveform (juce::Graphics& g,
 
             if (isSimple)
             {
-                // SIMPLE: stroke-only oscillation line (no fill)
+                // SIMPLE: stroke-only oscillation lines (L and R)
                 if (! simplePaths[i].isEmpty())
                 {
                     g.setColour (base.withAlpha (strokeAlpha));
@@ -752,10 +839,19 @@ void EnvelopeEditor::paintWaveform (juce::Graphics& g,
                                       juce::PathStrokeType::curved,
                                       juce::PathStrokeType::rounded));
                 }
+                // Draw R channel if it differs from L (stereo width > 0)
+                if (! simplePathsR[i].isEmpty() && simplePathsR[i] != simplePaths[i])
+                {
+                    g.setColour (base.withAlpha (strokeAlpha * 0.6f));
+                    g.strokePath (simplePathsR[i],
+                                  juce::PathStrokeType (strokeW * 0.8f,
+                                      juce::PathStrokeType::curved,
+                                      juce::PathStrokeType::rounded));
+                }
             }
             else
             {
-                // TRUE: semi-transparent fill + outline stroke
+                // TRUE: semi-transparent fill + outline stroke (L/R combined in path)
                 if (! layerPaths[i].isEmpty())
                 {
                     g.setColour (base.withAlpha (fillAlpha));

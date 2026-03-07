@@ -31,6 +31,13 @@ SnareMakerAudioProcessor::SnareMakerAudioProcessor()
     pResonantLevel  = apvts.getRawParameterValue ("resonantLevel");
     pRoomLevel      = apvts.getRawParameterValue ("roomLevel");
 
+    // Per-layer width (Phase 10)
+    pTransientWidth = apvts.getRawParameterValue ("transientWidth");
+    pBodyWidth      = apvts.getRawParameterValue ("bodyWidth");
+    pResonantWidth  = apvts.getRawParameterValue ("resonantWidth");
+    pNoiseWidth     = apvts.getRawParameterValue ("noiseWidth");
+    pRoomWidth      = apvts.getRawParameterValue ("roomWidth");
+
     // Output
     pOutputGain    = apvts.getRawParameterValue ("outputGain");
 
@@ -159,6 +166,33 @@ SnareMakerAudioProcessor::createParameterLayout()
         juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
         0.5f));
 
+    // ── Per-layer width (Phase 10) ─────────────────────────────────────────
+
+    params.push_back (std::make_unique<APF> (
+        PID { "transientWidth", 1 }, "Transient Width",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        0.5f));
+
+    params.push_back (std::make_unique<APF> (
+        PID { "bodyWidth", 1 }, "Body Width",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        0.5f));
+
+    params.push_back (std::make_unique<APF> (
+        PID { "resonantWidth", 1 }, "Resonant Width",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        0.5f));
+
+    params.push_back (std::make_unique<APF> (
+        PID { "noiseWidth", 1 }, "Noise Width",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        0.5f));
+
+    params.push_back (std::make_unique<APF> (
+        PID { "roomWidth", 1 }, "Room Width",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        0.5f));
+
     // ── Master output ─────────────────────────────────────────────────────
 
     params.push_back (std::make_unique<APF> (
@@ -247,6 +281,10 @@ void SnareMakerAudioProcessor::resetVoiceState()
     // Filter delay registers (avoid stale state producing noise on next note)
     noiseTypeFilter.reset();
     noiseBrightFilter.reset();
+
+    // Width processing state
+    for (int i = 0; i < kWidthLayers; ++i)
+        widthStates[i].reset();
 }
 
 // ── triggerNote ───────────────────────────────────────────────────────────────
@@ -344,6 +382,17 @@ void SnareMakerAudioProcessor::prepareToPlay (double sampleRate, int /*samplesPe
     gainSmooth.reset (sampleRate, 0.010);
     gainSmooth.setCurrentAndTargetValue (
         juce::Decibels::decibelsToGain (pOutputGain->load()));
+
+    // Width crossover filters: Butterworth LP+HP at crossover frequency
+    for (int i = 0; i < kWidthLayers; ++i)
+    {
+        widthStates[i].lpFilter.setLowPass  (sampleRate, kCrossoverFreq, 0.707);
+        widthStates[i].hpFilter.setHighPass (sampleRate, kCrossoverFreq, 0.707);
+    }
+
+    // Decorrelation delay: ~0.3 ms, clamped to buffer size
+    decoDelaySamples = juce::jlimit (1, kDecoDelayMax - 1,
+                                      (int) (sampleRate * 0.0003));
 }
 
 void SnareMakerAudioProcessor::releaseResources() {}
@@ -389,6 +438,14 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const float resonantLevel   = pResonantLevel->load();
     const float roomLevel       = pRoomLevel->load();
     (void) roomLevel;   // Room audio path not yet implemented; parameter ready for future use
+
+    // Per-layer width (Phase 10) — 0=mono, 0.5=natural, 1.0=wide
+    const float transientWidth  = pTransientWidth->load();
+    const float bodyWidth       = pBodyWidth->load();
+    const float resonantWidth   = pResonantWidth->load();
+    const float noiseWidth      = pNoiseWidth->load();
+    const float roomWidth       = pRoomWidth->load();
+    (void) roomWidth;
 
     const float outputGainDb    = pOutputGain->load();
 
@@ -443,6 +500,36 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const float* resonantData  = (resonantLen  > 0) ? resonantSampleBuffer.getReadPointer (0)  : nullptr;
     const float* noiseSmpData  = (noiseSmpLen  > 0) ? noiseSampleBuffer.getReadPointer (0)     : nullptr;
 
+    // ── Stereo width helper ──────────────────────────────────────────────
+    // Applies phase-safe stereo widening: crossover splits low (mono) from
+    // high band; decorrelation delay creates stereo content from mono;
+    // mid/side scaling controls width.  width 0=mono, 0.5=natural, 1=wide.
+    const int numCh = buffer.getNumChannels();
+    const int decoD = decoDelaySamples;
+
+    auto applyWidth = [&] (float mono, float width, WidthState& ws,
+                           float& outL, float& outR)
+    {
+        const float low  = ws.lpFilter.process (mono);
+        const float high = ws.hpFilter.process (mono);
+
+        // Write high band into decorrelation delay
+        ws.decoBuffer[ws.decoWritePos] = high;
+        const int readPos = (ws.decoWritePos - decoD + kDecoDelayMax) & (kDecoDelayMax - 1);
+        const float highDeco = ws.decoBuffer[readPos];
+        ws.decoWritePos = (ws.decoWritePos + 1) & (kDecoDelayMax - 1);
+
+        // Mid/side on high band
+        const float mid  = (high + highDeco) * 0.5f;
+        const float side = (high - highDeco) * 0.5f;
+
+        // Width scaling: 0→0 (mono), 0.5→1 (natural), 1.0→2 (wide)
+        const float sideGain = width * 2.0f;
+
+        outL = low + mid + side * sideGain;
+        outR = low + mid - side * sideGain;
+    };
+
     // ── Per-sample synthesis ───────────────────────────────────────────────
 
     auto renderSamples = [&] (int start, int end)
@@ -458,14 +545,19 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             if (!bodyActive && !declickActive && !samplesPlaying)
                 continue;
 
-            float mix = 0.0f;
+            float mixL = 0.0f, mixR = 0.0f;
 
             // ── Transient sample layer ─────────────────────────────────────
             if (transientPlaying && layerTransient && transientData != nullptr)
             {
                 const float tNorm = (float) transientPlayPos / (float) transientLen;
                 const float ampEnv = (float) transientAmpEnvelope.evaluate ((double) tNorm);
-                mix += transientData[transientPlayPos] * ampEnv * transientLevel;
+                const float mono = transientData[transientPlayPos] * ampEnv * transientLevel;
+
+                float wL, wR;
+                applyWidth (mono, transientWidth, widthStates[0], wL, wR);
+                mixL += wL;
+                mixR += wR;
             }
             if (transientPlaying)
             {
@@ -508,13 +600,21 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             }
 
             if (layerBody)
-                mix += bodyOut * bodyLevel;
+            {
+                const float mono = bodyOut * bodyLevel;
+                float wL, wR;
+                applyWidth (mono, bodyWidth, widthStates[1], wL, wR);
+                mixL += wL;
+                mixR += wR;
+            }
 
-            // Body declick tail
+            // Body declick tail (mono, no width processing needed)
             if (declickActive)
             {
                 const float fadeGain = (float) bodyFadeLeft / (float) kDeclickSamples;
-                mix += bodyFadeSample * fadeGain;
+                const float fade = bodyFadeSample * fadeGain;
+                mixL += fade;
+                mixR += fade;
                 --bodyFadeLeft;
             }
 
@@ -523,7 +623,12 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             {
                 const float tNorm = (float) resonantPlayPos / (float) resonantLen;
                 const float ampEnv = (float) resonantAmpEnvelope.evaluate ((double) tNorm);
-                mix += resonantData[resonantPlayPos] * ampEnv * resonantLevel;
+                const float mono = resonantData[resonantPlayPos] * ampEnv * resonantLevel;
+
+                float wL, wR;
+                applyWidth (mono, resonantWidth, widthStates[2], wL, wR);
+                mixL += wL;
+                mixR += wR;
             }
             if (resonantPlaying)
             {
@@ -543,7 +648,13 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                 {
                     const float rawNoise = (random.nextFloat() * 2.0f - 1.0f)
                                            * noiseLevel * noiseAmp;
-                    mix += noiseBrightFilter.process (noiseTypeFilter.process (rawNoise));
+                    const float mono = noiseBrightFilter.process (
+                        noiseTypeFilter.process (rawNoise));
+
+                    float wL, wR;
+                    applyWidth (mono, noiseWidth, widthStates[3], wL, wR);
+                    mixL += wL;
+                    mixR += wR;
                 }
             }
 
@@ -552,7 +663,12 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             {
                 const float tNorm = (float) noiseSamplePlayPos / (float) noiseSmpLen;
                 const float ampEnv = (float) noiseAmpEnvelope.evaluate ((double) tNorm);
-                mix += noiseSmpData[noiseSamplePlayPos] * ampEnv * noiseLevel;
+                const float mono = noiseSmpData[noiseSamplePlayPos] * ampEnv * noiseLevel;
+
+                float wL, wR;
+                applyWidth (mono, noiseWidth, widthStates[3], wL, wR);
+                mixL += wL;
+                mixR += wR;
             }
             if (noiseSamplePlaying)
             {
@@ -561,11 +677,17 @@ void SnareMakerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                     noiseSamplePlaying = false;
             }
 
-            // ── Mix and apply smoothed output gain ─────────────────────────
-            const float sample = mix * gainThisSample;
-
-            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-                buffer.addSample (ch, s, sample);
+            // ── Apply smoothed output gain to stereo mix ───────────────────
+            if (numCh >= 2)
+            {
+                buffer.addSample (0, s, mixL * gainThisSample);
+                buffer.addSample (1, s, mixR * gainThisSample);
+            }
+            else
+            {
+                // Mono bus: sum to mono
+                buffer.addSample (0, s, (mixL + mixR) * 0.5f * gainThisSample);
+            }
         }
     };
 

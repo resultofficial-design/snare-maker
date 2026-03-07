@@ -75,6 +75,12 @@ public:
         layerVolumes[static_cast<int> (layer)] = &vol;
     }
 
+    // Bind per-layer width parameters for stereo waveform preview.
+    void setLayerWidth (WaveLayer layer, std::atomic<float>& w)
+    {
+        layerWidths[static_cast<int> (layer)] = &w;
+    }
+
     // Bind playback position from processor (elapsed seconds, <0 = idle).
     void setPlaybackPosition (std::atomic<float>& pos) { playbackPos = &pos; }
 
@@ -142,9 +148,12 @@ private:
     static constexpr int kWaveformSamples = 2048;
     static constexpr int kNumLayers       = static_cast<int> (WaveLayer::COUNT);
 
-    std::vector<float> layerBuffers[kNumLayers];
+    std::vector<float> layerBuffers[kNumLayers];     // L channel (or mono)
+    std::vector<float> layerBuffersR[kNumLayers];    // R channel (stereo width)
     juce::Path         layerPaths      [kNumLayers];   // TRUE paths (full detail)
+    juce::Path         layerPathsR     [kNumLayers];   // TRUE paths R channel
     juce::Path         simplePaths     [kNumLayers];   // SIMPLE paths (smoothed RMS)
+    juce::Path         simplePathsR    [kNumLayers];   // SIMPLE paths R channel
     bool               layerUsesSample [kNumLayers] {};  // true = loaded sample, skip synth regen
     bool               layerEnabled    [kNumLayers] { true, true, true, true };
     FlexibleEnvelope*  ampEnvForLayer  [kNumLayers] {};  // per-layer amp envelopes (not owned)
@@ -166,8 +175,14 @@ private:
     // Per-layer volume pointers (from processor APVTS, not owned)
     std::atomic<float>* layerVolumes[kNumLayers] {};
 
+    // Per-layer width pointers (from processor APVTS, not owned)
+    std::atomic<float>* layerWidths[kNumLayers] {};
+
     // Change detection for volume values
     float lastWfVolumes[kNumLayers] { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    // Change detection for width values
+    float lastWfWidths[kNumLayers] { 0.5f, 0.5f, 0.5f, 0.5f };
 
     // Playback position (from processor, not owned)
     std::atomic<float>* playbackPos = nullptr;
