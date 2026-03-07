@@ -142,22 +142,22 @@ SnareMakerAudioProcessor::createParameterLayout()
     params.push_back (std::make_unique<APF> (
         PID { "transientLevel", 1 }, "Transient Level",
         juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
-        1.0f));
+        0.5f));
 
     params.push_back (std::make_unique<APF> (
         PID { "bodyLevel", 1 }, "Body Level",
         juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
-        1.0f));
+        0.5f));
 
     params.push_back (std::make_unique<APF> (
         PID { "resonantLevel", 1 }, "Resonant Level",
         juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
-        1.0f));
+        0.5f));
 
     params.push_back (std::make_unique<APF> (
         PID { "roomLevel", 1 }, "Room Level",
         juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
-        1.0f));
+        0.5f));
 
     // ── Master output ─────────────────────────────────────────────────────
 

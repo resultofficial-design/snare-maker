@@ -663,10 +663,17 @@ void SnareMakerAudioProcessorEditor::setActiveTab (Tab tab)
             layerVolumeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
                 audioProcessor.apvts, paramId, layerVolumeKnob);
 
-            // Position: right side of envelope editor, below SIMPLE/TRUE toggle
-            constexpr int knobSize = 40;
-            const int knobX = envEditorFullBounds.getRight() - kUISpacing - knobSize - 4;
-            const int knobY = envEditorFullBounds.getY() + 50;
+            // Position: directly under SIMPLE/TRUE toggle, matching its right alignment
+            // modeToggle in EnvelopeEditor: x = editorW - 16 - 110, y = 16, w = 110, h = 22
+            constexpr int knobSize  = 40;
+            constexpr int toggleW   = 110;
+            constexpr int toggleH   = 22;
+            constexpr int envPad    = 16;   // matches EnvelopeEditor kUISpacing
+            const auto envBounds = envelopeEditor.getBounds();
+            const int toggleRight = envBounds.getRight() - envPad;
+            const int toggleCX    = toggleRight - toggleW / 2;
+            const int knobX = toggleCX - knobSize / 2;
+            const int knobY = envBounds.getY() + envPad + toggleH + envPad;
             layerVolumeKnob.setBounds (knobX, knobY, knobSize, knobSize);
         }
     }
