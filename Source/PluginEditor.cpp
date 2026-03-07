@@ -279,6 +279,15 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
 {
     setLookAndFeel (&lnf);
 
+    // Propagate LookAndFeel to nested container components so all child
+    // sliders (including rotary knobs) use the custom drawRotarySlider.
+    envelopeEditor.setLookAndFeel (&lnf);
+    noiseFilterVis.setLookAndFeel (&lnf);
+    noiseSampleFilterVis.setLookAndFeel (&lnf);
+    transientFilterVis.setLookAndFeel (&lnf);
+    roomFilterVis.setLookAndFeel (&lnf);
+    resonantFilterVis.setLookAndFeel (&lnf);
+
     // ── Envelope editor (overlays drum centre area) ─────────────────────────
     envelopeEditor.connectToParameters (audioProcessor.apvts, audioProcessor.pitchEnvelope,
                                         audioProcessor.envelopeLock,
@@ -526,6 +535,12 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
 
 SnareMakerAudioProcessorEditor::~SnareMakerAudioProcessorEditor()
 {
+    envelopeEditor.setLookAndFeel (nullptr);
+    noiseFilterVis.setLookAndFeel (nullptr);
+    noiseSampleFilterVis.setLookAndFeel (nullptr);
+    transientFilterVis.setLookAndFeel (nullptr);
+    roomFilterVis.setLookAndFeel (nullptr);
+    resonantFilterVis.setLookAndFeel (nullptr);
     setLookAndFeel (nullptr);
 }
 
@@ -1595,40 +1610,59 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             const int knob1X = selX2 + knobArea / 2 - knobSize / 2;
             const int knob2X = selX2 + knobArea + knobArea / 2 - knobSize / 2;
 
-            // Width knob
-            g.setColour (juce::Colour (0xff2A3038));
-            g.fillEllipse ((float) knob1X, (float) knobY,
-                           (float) knobSize, (float) knobSize);
-            g.setColour (juce::Colour (0xff363E4A));
-            g.drawEllipse ((float) knob1X + 0.5f, (float) knobY + 0.5f,
-                           (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
-            g.setColour (juce::Colours::white.withAlpha (0.6f));
+            // Helper: draw a placeholder knob matching drawRotarySlider style
+            auto drawPlaceholderKnob = [&] (int kx, int ky, int ks, const char* label)
             {
-                const float kcx = (float) knob1X + (float) knobSize * 0.5f;
-                g.drawLine (kcx, (float) knobY + (float) knobSize * 0.5f,
-                            kcx, (float) knobY + 4.0f, 1.5f);
-            }
-            g.setColour (kTextMuted);
-            g.setFont (lnf.interRegularFont (9.0f));
-            g.drawText ("Width", knob1X - 5, knobY + knobSize + 2,
-                        knobSize + 10, labelH, juce::Justification::centred, false);
+                const float diameter = (float) ks;
+                const float radius   = diameter * 0.5f;
+                const float cx       = (float) kx + radius;
+                const float cy       = (float) ky + radius;
+                const juce::Colour accent (0xff888888);
 
-            // Pitch knob
-            g.setColour (juce::Colour (0xff2A3038));
-            g.fillEllipse ((float) knob2X, (float) knobY,
-                           (float) knobSize, (float) knobSize);
-            g.setColour (juce::Colour (0xff363E4A));
-            g.drawEllipse ((float) knob2X + 0.5f, (float) knobY + 0.5f,
-                           (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
-            g.setColour (juce::Colours::white.withAlpha (0.6f));
-            {
-                const float kcx = (float) knob2X + (float) knobSize * 0.5f;
-                g.drawLine (kcx, (float) knobY + (float) knobSize * 0.5f,
-                            kcx, (float) knobY + 4.0f, 1.5f);
-            }
-            g.setColour (kTextMuted);
-            g.drawText ("Pitch", knob2X - 5, knobY + knobSize + 2,
-                        knobSize + 10, labelH, juce::Justification::centred, false);
+                constexpr float startAngle = -2.356194f;  // -3π/4
+                constexpr float endAngle   =  2.356194f;  //  3π/4
+                constexpr float arcW       =  4.0f;
+                const float arcRadius      = radius - 6.0f;
+                const float angle          = 0.0f;  // 50% → straight up
+
+                // Base circle
+                g.setColour (juce::Colour (0xff1E2229));
+                g.fillEllipse (cx - radius, cy - radius, diameter, diameter);
+
+                // Background arc
+                juce::Path bgArc;
+                bgArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                                     startAngle, endAngle, true);
+                g.setColour (juce::Colour (0xff2A3038));
+                g.strokePath (bgArc, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
+                                                            juce::PathStrokeType::rounded));
+
+                // Value arc (start → 50%)
+                juce::Path valueArc;
+                valueArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                                        startAngle, angle, true);
+                g.setColour (accent);
+                g.strokePath (valueArc, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
+                                                               juce::PathStrokeType::rounded));
+
+                // Pointer line
+                const float pointerLen  = arcRadius - 10.0f;
+                const float pointerTail = 8.0f;
+                const float px2 = std::sin (angle);
+                const float py2 = -std::cos (angle);
+                g.setColour (juce::Colours::white);
+                g.drawLine (cx + px2 * pointerTail, cy + py2 * pointerTail,
+                            cx + px2 * pointerLen,  cy + py2 * pointerLen, 2.0f);
+
+                // Label
+                g.setColour (kTextMuted);
+                g.setFont (lnf.interRegularFont (9.0f));
+                g.drawText (label, kx - 10, ky + ks + 2,
+                            ks + 20, labelH, juce::Justification::centred, false);
+            };
+
+            drawPlaceholderKnob (knob1X, knobY, knobSize, "Width");
+            drawPlaceholderKnob (knob2X, knobY, knobSize, "Pitch");
 
             // Filter section: handled by transientFilterVis component
         }
@@ -1707,30 +1741,55 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             const int k2X = selX2 + knobArea + knobArea / 2 - knobSize / 2;
             const int row2Y = knobY + knobSize + labelH + secGap;
 
-            auto drawKnob = [&] (int kx, int ky, const char* label)
+            auto drawPlaceholderKnob = [&] (int kx, int ky, int ks, const char* label)
             {
+                const float diameter = (float) ks;
+                const float radius   = diameter * 0.5f;
+                const float cx       = (float) kx + radius;
+                const float cy       = (float) ky + radius;
+                const juce::Colour accent (0xff888888);
+
+                constexpr float startAngle = -2.356194f;
+                constexpr float endAngle   =  2.356194f;
+                constexpr float arcW       =  4.0f;
+                const float arcRadius      = radius - 6.0f;
+                const float angle          = 0.0f;
+
+                g.setColour (juce::Colour (0xff1E2229));
+                g.fillEllipse (cx - radius, cy - radius, diameter, diameter);
+
+                juce::Path bgArc;
+                bgArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                                     startAngle, endAngle, true);
                 g.setColour (juce::Colour (0xff2A3038));
-                g.fillEllipse ((float) kx, (float) ky,
-                               (float) knobSize, (float) knobSize);
-                g.setColour (juce::Colour (0xff363E4A));
-                g.drawEllipse ((float) kx + 0.5f, (float) ky + 0.5f,
-                               (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
-                g.setColour (juce::Colours::white.withAlpha (0.6f));
-                {
-                    const float kcx = (float) kx + (float) knobSize * 0.5f;
-                    g.drawLine (kcx, (float) ky + (float) knobSize * 0.5f,
-                                kcx, (float) ky + 4.0f, 1.5f);
-                }
+                g.strokePath (bgArc, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
+                                                            juce::PathStrokeType::rounded));
+
+                juce::Path valueArc;
+                valueArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                                        startAngle, angle, true);
+                g.setColour (accent);
+                g.strokePath (valueArc, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
+                                                               juce::PathStrokeType::rounded));
+
+                const float pointerLen  = arcRadius - 10.0f;
+                const float pointerTail = 8.0f;
+                const float px2 = std::sin (angle);
+                const float py2 = -std::cos (angle);
+                g.setColour (juce::Colours::white);
+                g.drawLine (cx + px2 * pointerTail, cy + py2 * pointerTail,
+                            cx + px2 * pointerLen,  cy + py2 * pointerLen, 2.0f);
+
                 g.setColour (kTextMuted);
                 g.setFont (lnf.interRegularFont (9.0f));
-                g.drawText (label, kx - 10, ky + knobSize + 2,
-                            knobSize + 20, labelH, juce::Justification::centred, false);
+                g.drawText (label, kx - 10, ky + ks + 2,
+                            ks + 20, labelH, juce::Justification::centred, false);
             };
 
-            drawKnob (k1X, knobY, "Size");
-            drawKnob (k2X, knobY, "Decay");
-            drawKnob (k1X, row2Y, "Pre-Delay");
-            drawKnob (k2X, row2Y, "Width");
+            drawPlaceholderKnob (k1X, knobY, knobSize, "Size");
+            drawPlaceholderKnob (k2X, knobY, knobSize, "Decay");
+            drawPlaceholderKnob (k1X, row2Y, knobSize, "Pre-Delay");
+            drawPlaceholderKnob (k2X, row2Y, knobSize, "Width");
 
             // Filter section: handled by roomFilterVis component
         }
@@ -1809,30 +1868,55 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
             const int k2X = selX2 + knobArea + knobArea / 2 - knobSize / 2;
             const int row2Y = knobY + knobSize + labelH + secGap;
 
-            auto drawKnob = [&] (int kx, int ky, const char* label)
+            auto drawPlaceholderKnob = [&] (int kx, int ky, int ks, const char* label)
             {
+                const float diameter = (float) ks;
+                const float radius   = diameter * 0.5f;
+                const float cx       = (float) kx + radius;
+                const float cy       = (float) ky + radius;
+                const juce::Colour accent (0xff888888);
+
+                constexpr float startAngle = -2.356194f;
+                constexpr float endAngle   =  2.356194f;
+                constexpr float arcW       =  4.0f;
+                const float arcRadius      = radius - 6.0f;
+                const float angle          = 0.0f;
+
+                g.setColour (juce::Colour (0xff1E2229));
+                g.fillEllipse (cx - radius, cy - radius, diameter, diameter);
+
+                juce::Path bgArc;
+                bgArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                                     startAngle, endAngle, true);
                 g.setColour (juce::Colour (0xff2A3038));
-                g.fillEllipse ((float) kx, (float) ky,
-                               (float) knobSize, (float) knobSize);
-                g.setColour (juce::Colour (0xff363E4A));
-                g.drawEllipse ((float) kx + 0.5f, (float) ky + 0.5f,
-                               (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
-                g.setColour (juce::Colours::white.withAlpha (0.6f));
-                {
-                    const float kcx = (float) kx + (float) knobSize * 0.5f;
-                    g.drawLine (kcx, (float) ky + (float) knobSize * 0.5f,
-                                kcx, (float) ky + 4.0f, 1.5f);
-                }
+                g.strokePath (bgArc, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
+                                                            juce::PathStrokeType::rounded));
+
+                juce::Path valueArc;
+                valueArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                                        startAngle, angle, true);
+                g.setColour (accent);
+                g.strokePath (valueArc, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
+                                                               juce::PathStrokeType::rounded));
+
+                const float pointerLen  = arcRadius - 10.0f;
+                const float pointerTail = 8.0f;
+                const float px2 = std::sin (angle);
+                const float py2 = -std::cos (angle);
+                g.setColour (juce::Colours::white);
+                g.drawLine (cx + px2 * pointerTail, cy + py2 * pointerTail,
+                            cx + px2 * pointerLen,  cy + py2 * pointerLen, 2.0f);
+
                 g.setColour (kTextMuted);
                 g.setFont (lnf.interRegularFont (9.0f));
-                g.drawText (label, kx - 10, ky + knobSize + 2,
-                            knobSize + 20, labelH, juce::Justification::centred, false);
+                g.drawText (label, kx - 10, ky + ks + 2,
+                            ks + 20, labelH, juce::Justification::centred, false);
             };
 
-            drawKnob (k1X, knobY, "Pitch");
-            drawKnob (k2X, knobY, "Decay");
-            drawKnob (k1X, row2Y, "Width");
-            drawKnob (k2X, row2Y, "Drive");
+            drawPlaceholderKnob (k1X, knobY, knobSize, "Pitch");
+            drawPlaceholderKnob (k2X, knobY, knobSize, "Decay");
+            drawPlaceholderKnob (k1X, row2Y, knobSize, "Width");
+            drawPlaceholderKnob (k2X, row2Y, knobSize, "Drive");
 
             // ── FOLLOW BODY toggle button ─────────────────────────────
             const int togY = row2Y + knobSize + labelH + secGap + 4;
@@ -1947,40 +2031,53 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
                 const int knob1X = selX + knobArea / 2 - knobSize / 2;
                 const int knob2X = selX + knobArea + knobArea / 2 - knobSize / 2;
 
-                // Width knob
-                g.setColour (juce::Colour (0xff2A3038));
-                g.fillEllipse ((float) knob1X, (float) knobY,
-                               (float) knobSize, (float) knobSize);
-                g.setColour (juce::Colour (0xff363E4A));
-                g.drawEllipse ((float) knob1X + 0.5f, (float) knobY + 0.5f,
-                               (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
-                g.setColour (juce::Colours::white.withAlpha (0.6f));
+                auto drawPlaceholderKnob = [&] (int kx, int ky, int ks, const char* label)
                 {
-                    const float kcx = (float) knob1X + (float) knobSize * 0.5f;
-                    g.drawLine (kcx, (float) knobY + (float) knobSize * 0.5f,
-                                kcx, (float) knobY + 4.0f, 1.5f);
-                }
-                g.setColour (kTextMuted);
-                g.setFont (lnf.interRegularFont (9.0f));
-                g.drawText ("Width", knob1X - 5, knobY + knobSize + 2,
-                            knobSize + 10, labelH, juce::Justification::centred, false);
+                    const float diameter = (float) ks;
+                    const float radius   = diameter * 0.5f;
+                    const float cx       = (float) kx + radius;
+                    const float cy       = (float) ky + radius;
+                    const juce::Colour accent (0xff888888);
 
-                // Pan knob
-                g.setColour (juce::Colour (0xff2A3038));
-                g.fillEllipse ((float) knob2X, (float) knobY,
-                               (float) knobSize, (float) knobSize);
-                g.setColour (juce::Colour (0xff363E4A));
-                g.drawEllipse ((float) knob2X + 0.5f, (float) knobY + 0.5f,
-                               (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
-                g.setColour (juce::Colours::white.withAlpha (0.6f));
-                {
-                    const float kcx = (float) knob2X + (float) knobSize * 0.5f;
-                    g.drawLine (kcx, (float) knobY + (float) knobSize * 0.5f,
-                                kcx, (float) knobY + 4.0f, 1.5f);
-                }
-                g.setColour (kTextMuted);
-                g.drawText ("Pan", knob2X - 5, knobY + knobSize + 2,
-                            knobSize + 10, labelH, juce::Justification::centred, false);
+                    constexpr float startAngle = -2.356194f;
+                    constexpr float endAngle   =  2.356194f;
+                    constexpr float arcW       =  4.0f;
+                    const float arcRadius      = radius - 6.0f;
+                    const float angle          = 0.0f;
+
+                    g.setColour (juce::Colour (0xff1E2229));
+                    g.fillEllipse (cx - radius, cy - radius, diameter, diameter);
+
+                    juce::Path bgArc;
+                    bgArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                                         startAngle, endAngle, true);
+                    g.setColour (juce::Colour (0xff2A3038));
+                    g.strokePath (bgArc, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
+                                                                juce::PathStrokeType::rounded));
+
+                    juce::Path valueArc;
+                    valueArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                                            startAngle, angle, true);
+                    g.setColour (accent);
+                    g.strokePath (valueArc, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
+                                                                   juce::PathStrokeType::rounded));
+
+                    const float pointerLen  = arcRadius - 10.0f;
+                    const float pointerTail = 8.0f;
+                    const float px2 = std::sin (angle);
+                    const float py2 = -std::cos (angle);
+                    g.setColour (juce::Colours::white);
+                    g.drawLine (cx + px2 * pointerTail, cy + py2 * pointerTail,
+                                cx + px2 * pointerLen,  cy + py2 * pointerLen, 2.0f);
+
+                    g.setColour (kTextMuted);
+                    g.setFont (lnf.interRegularFont (9.0f));
+                    g.drawText (label, kx - 10, ky + ks + 2,
+                                ks + 20, labelH, juce::Justification::centred, false);
+                };
+
+                drawPlaceholderKnob (knob1X, knobY, knobSize, "Width");
+                drawPlaceholderKnob (knob2X, knobY, knobSize, "Pan");
 
                 // Filter section: handled by NoiseFilterVisualizer component
             }
@@ -2056,30 +2153,55 @@ void SnareMakerAudioProcessorEditor::paintDrumArea (
                 const int k2X = selX + knobArea + knobArea / 2 - knobSize / 2;
                 const int row2Y = knobY2 + knobSize + labelH + secGap;
 
-                auto drawKnob = [&] (int kx, int ky, const char* label)
+                auto drawPlaceholderKnob = [&] (int kx, int ky, int ks, const char* label)
                 {
+                    const float diameter = (float) ks;
+                    const float radius   = diameter * 0.5f;
+                    const float cx       = (float) kx + radius;
+                    const float cy       = (float) ky + radius;
+                    const juce::Colour accent (0xff888888);
+
+                    constexpr float startAngle = -2.356194f;
+                    constexpr float endAngle   =  2.356194f;
+                    constexpr float arcW       =  4.0f;
+                    const float arcRadius      = radius - 6.0f;
+                    const float angle          = 0.0f;
+
+                    g.setColour (juce::Colour (0xff1E2229));
+                    g.fillEllipse (cx - radius, cy - radius, diameter, diameter);
+
+                    juce::Path bgArc;
+                    bgArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                                         startAngle, endAngle, true);
                     g.setColour (juce::Colour (0xff2A3038));
-                    g.fillEllipse ((float) kx, (float) ky,
-                                   (float) knobSize, (float) knobSize);
-                    g.setColour (juce::Colour (0xff363E4A));
-                    g.drawEllipse ((float) kx + 0.5f, (float) ky + 0.5f,
-                                   (float) knobSize - 1.0f, (float) knobSize - 1.0f, 1.0f);
-                    g.setColour (juce::Colours::white.withAlpha (0.6f));
-                    {
-                        const float kcx = (float) kx + (float) knobSize * 0.5f;
-                        g.drawLine (kcx, (float) ky + (float) knobSize * 0.5f,
-                                    kcx, (float) ky + 4.0f, 1.5f);
-                    }
+                    g.strokePath (bgArc, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
+                                                                juce::PathStrokeType::rounded));
+
+                    juce::Path valueArc;
+                    valueArc.addCentredArc (cx, cy, arcRadius, arcRadius, 0.0f,
+                                            startAngle, angle, true);
+                    g.setColour (accent);
+                    g.strokePath (valueArc, juce::PathStrokeType (arcW, juce::PathStrokeType::curved,
+                                                                   juce::PathStrokeType::rounded));
+
+                    const float pointerLen  = arcRadius - 10.0f;
+                    const float pointerTail = 8.0f;
+                    const float px2 = std::sin (angle);
+                    const float py2 = -std::cos (angle);
+                    g.setColour (juce::Colours::white);
+                    g.drawLine (cx + px2 * pointerTail, cy + py2 * pointerTail,
+                                cx + px2 * pointerLen,  cy + py2 * pointerLen, 2.0f);
+
                     g.setColour (kTextMuted);
                     g.setFont (lnf.interRegularFont (9.0f));
-                    g.drawText (label, kx - 10, ky + knobSize + 2,
-                                knobSize + 20, labelH, juce::Justification::centred, false);
+                    g.drawText (label, kx - 10, ky + ks + 2,
+                                ks + 20, labelH, juce::Justification::centred, false);
                 };
 
-                drawKnob (k1X, knobY2, "Start");
-                drawKnob (k2X, knobY2, "Length");
-                drawKnob (k1X, row2Y,  "Pitch");
-                drawKnob (k2X, row2Y,  "Width");
+                drawPlaceholderKnob (k1X, knobY2, knobSize, "Start");
+                drawPlaceholderKnob (k2X, knobY2, knobSize, "Length");
+                drawPlaceholderKnob (k1X, row2Y,  knobSize, "Pitch");
+                drawPlaceholderKnob (k2X, row2Y,  knobSize, "Width");
 
                 // Filter section: handled by noiseSampleFilterVis component
             }
