@@ -48,6 +48,10 @@ public:
     // Set which waveform layer is highlighted (full alpha); others are dimmed.
     void setActiveLayer (WaveLayer layer);
 
+    // Enable / disable a layer's waveform in the visualiser.
+    // Disabled layers are not drawn and do not contribute to the preview.
+    void setLayerEnabled (WaveLayer layer, bool enabled);
+
     // Replace a layer's waveform with externally-loaded sample data.
     // Resamples to kWaveformSamples and rebuilds paths.
     void setLayerSampleData (WaveLayer layer, const float* data, int numSamples);
@@ -74,8 +78,9 @@ public:
     // Bind playback position from processor (elapsed seconds, <0 = idle).
     void setPlaybackPosition (std::atomic<float>& pos) { playbackPos = &pos; }
 
-    void paint     (juce::Graphics&) override;
-    void resized   () override;
+    void paint             (juce::Graphics&) override;
+    void paintOverChildren (juce::Graphics&) override;
+    void resized           () override;
 
     void mouseDown        (const juce::MouseEvent&) override;
     void mouseDrag        (const juce::MouseEvent&) override;
@@ -141,6 +146,7 @@ private:
     juce::Path         layerPaths      [kNumLayers];   // TRUE paths (full detail)
     juce::Path         simplePaths     [kNumLayers];   // SIMPLE paths (smoothed RMS)
     bool               layerUsesSample [kNumLayers] {};  // true = loaded sample, skip synth regen
+    bool               layerEnabled    [kNumLayers] { true, true, true, true };
     FlexibleEnvelope*  ampEnvForLayer  [kNumLayers] {};  // per-layer amp envelopes (not owned)
     WaveLayer          activeLayer { WaveLayer::Body };
 

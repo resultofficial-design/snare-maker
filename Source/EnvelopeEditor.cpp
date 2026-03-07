@@ -91,6 +91,20 @@ void EnvelopeEditor::setActiveLayer (WaveLayer layer)
 }
 
 // =============================================================================
+// setLayerEnabled  –  show/hide a layer's waveform in the visualiser
+// =============================================================================
+
+void EnvelopeEditor::setLayerEnabled (WaveLayer layer, bool enabled)
+{
+    const int idx = static_cast<int> (layer);
+    if (idx >= 0 && idx < kNumLayers && layerEnabled[idx] != enabled)
+    {
+        layerEnabled[idx] = enabled;
+        repaint();
+    }
+}
+
+// =============================================================================
 // setLayerSampleData  –  replace a layer with external sample data
 // =============================================================================
 
@@ -268,6 +282,9 @@ void EnvelopeEditor::resized()
     const int x = getWidth() - kUISpacing - toggleW;
     const int y = kUISpacing;
     modeToggle.setBounds (x, y, toggleW, toggleH);
+
+    // Rebuild waveform paths for new component dimensions
+    regenerateWaveform();
 }
 
 // =============================================================================
@@ -640,16 +657,15 @@ void EnvelopeEditor::regenerateWaveform()
         layerPaths[layer].closeSubPath();
     }
 
-    // ── Build SIMPLE paths (downsampled waveform line, not filled) ─────────
-    // Take every Nth sample, apply light smoothing, build a line path that
-    // preserves oscillation cycles without micro-detail.
-    constexpr int kSimplePoints = 256;   // enough points for clear oscillations
+    // ── Build SIMPLE paths (peak-sampled per pixel, like TRUE but as a line) ──
+    // Uses the same min/max scanning as TRUE paths to eliminate aliasing,
+    // then draws the midpoint (avg of min/max) as a smooth line.
 
     for (int layer = 0; layer < kNumLayers; ++layer)
     {
         simplePaths[layer].clear();
 
-        if (plotW < 1.0f)
+        if (cols < 2 || plotW < 1.0f)
             continue;
 
         const auto& buf = layerBuffers[layer];
@@ -657,46 +673,58 @@ void EnvelopeEditor::regenerateWaveform()
         if (n < 2) continue;
 
         const bool envScale = layerUsesSample[layer] && ampEnvForLayer[layer] != nullptr;
+        const float volScale = layerVol[layer];
 
-        const int numPts = std::min (kSimplePoints, n);
+        // Peak-sample per pixel column, then draw midpoint line
+        simplePaths[layer].startNewSubPath (plotL, plotCY);
+        bool started = false;
 
-        // Downsample: pick evenly spaced samples (with envelope scaling for sample layers)
-        std::vector<float> samples (numPts);
-        for (int i = 0; i < numPts; ++i)
+        for (int c = 0; c < cols; ++c)
         {
-            const int srcIdx = i * (n - 1) / (numPts - 1);
-            float v = buf[(size_t) srcIdx];
+            const int s0 = c * n / cols;
+            const int s1 = std::min (n - 1, (c + 1) * n / cols);
+
+            float lo = buf[(size_t) s0];
+            float hi = lo;
             if (envScale)
-                v *= (float) ampEnvForLayer[layer]->evaluate (
-                    (double) srcIdx / (double) (n - 1));
-            if (layerUsesSample[layer])
-                v *= layerVol[layer];
-            samples[(size_t) i] = v;
-        }
-
-        // Two passes of 3-tap moving average for gentle smoothing
-        auto smooth3 = [] (std::vector<float>& arr)
-        {
-            const int sz = (int) arr.size();
-            if (sz < 3) return;
-            float prev = arr[0];
-            for (int i = 1; i < sz - 1; ++i)
             {
-                const float cur = arr[(size_t) i];
-                arr[(size_t) i] = (prev + cur + arr[(size_t) (i + 1)]) / 3.0f;
-                prev = cur;
+                float env0 = (float) ampEnvForLayer[layer]->evaluate (
+                    (double) s0 / (double) (n - 1));
+                lo *= env0;
+                hi *= env0;
             }
-        };
+            if (layerUsesSample[layer])
+            {
+                lo *= volScale;
+                hi *= volScale;
+            }
 
-        smooth3 (samples);
-        smooth3 (samples);
+            for (int s = s0 + 1; s <= s1; ++s)
+            {
+                float v = buf[(size_t) s];
+                if (envScale)
+                    v *= (float) ampEnvForLayer[layer]->evaluate (
+                        (double) s / (double) (n - 1));
+                if (layerUsesSample[layer])
+                    v *= volScale;
+                if (v < lo) lo = v;
+                if (v > hi) hi = v;
+            }
 
-        // Build open line path (not closed / not filled)
-        const float step = plotW / (float) (numPts - 1);
-        simplePaths[layer].startNewSubPath (plotL, plotCY - samples[0] * halfH);
-        for (int i = 1; i < numPts; ++i)
-            simplePaths[layer].lineTo (plotL + (float) i * step,
-                                       plotCY - samples[(size_t) i] * halfH);
+            const float mid = (lo + hi) * 0.5f;
+            const float px  = plotL + (float) c;
+            const float py  = plotCY - mid * halfH;
+
+            if (! started)
+            {
+                simplePaths[layer].startNewSubPath (px, py);
+                started = true;
+            }
+            else
+            {
+                simplePaths[layer].lineTo (px, py);
+            }
+        }
     }
 }
 
@@ -716,6 +744,10 @@ void EnvelopeEditor::paintWaveform (juce::Graphics& g,
     {
         for (int i = 0; i < kNumLayers; ++i)
         {
+            // Skip disabled layers entirely
+            if (! layerEnabled[i])
+                continue;
+
             const bool isActive = (i == activeIdx);
             if ((pass == 0) == isActive)
                 continue;   // pass 0 = inactive only, pass 1 = active only
@@ -1118,8 +1150,24 @@ void EnvelopeEditor::paint (juce::Graphics& g)
         }
     }
 
-    // ── 5. Envelope curve ────────────────────────────────────────────────────
+    // Envelope curve, nodes, and segment indicators are drawn in
+    // paintOverChildren() so they render above the SIMPLE/TRUE buttons.
+}
+
+// =============================================================================
+// paintOverChildren  –  envelope curve + nodes (above child components)
+// =============================================================================
+
+void EnvelopeEditor::paintOverChildren (juce::Graphics& g)
+{
+    if (envelope == nullptr)
+        return;
+
+    const float h = (float) getHeight();
+    const float plotB  = h - kPadBottom;
     const juce::Colour curveGrey (0xff8A8F98);
+
+    // ── 5. Envelope curve ────────────────────────────────────────────────────
     juce::Path curvePath = buildCurvePath();
 
     if (! curvePath.isEmpty())

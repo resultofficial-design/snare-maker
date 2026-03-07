@@ -512,11 +512,16 @@ SnareMakerAudioProcessorEditor::SnareMakerAudioProcessorEditor (
     // Now that bounds exist, set tab + envelope mode
     setActiveTab (Tab::Body);
 
-    // Sync initial layer-enabled state to processor
+    // Sync initial layer-enabled state to processor and envelope editor
     audioProcessor.transientEnabled.store (tabEnabledFor (Tab::Transient), std::memory_order_relaxed);
     audioProcessor.bodyEnabled     .store (tabEnabledFor (Tab::Body),      std::memory_order_relaxed);
     audioProcessor.resonantEnabled .store (tabEnabledFor (Tab::Resonant),  std::memory_order_relaxed);
     audioProcessor.noiseEnabled    .store (tabEnabledFor (Tab::Noise),     std::memory_order_relaxed);
+
+    envelopeEditor.setLayerEnabled (EnvelopeEditor::WaveLayer::Transient, tabEnabledFor (Tab::Transient));
+    envelopeEditor.setLayerEnabled (EnvelopeEditor::WaveLayer::Body,      tabEnabledFor (Tab::Body));
+    envelopeEditor.setLayerEnabled (EnvelopeEditor::WaveLayer::Resonant,  tabEnabledFor (Tab::Resonant));
+    envelopeEditor.setLayerEnabled (EnvelopeEditor::WaveLayer::Noise,     tabEnabledFor (Tab::Noise));
 }
 
 SnareMakerAudioProcessorEditor::~SnareMakerAudioProcessorEditor()
@@ -1050,6 +1055,12 @@ void SnareMakerAudioProcessorEditor::mouseDown (const juce::MouseEvent& e)
                 audioProcessor.bodyEnabled     .store (tabEnabledFor (Tab::Body),      std::memory_order_relaxed);
                 audioProcessor.resonantEnabled .store (tabEnabledFor (Tab::Resonant),  std::memory_order_relaxed);
                 audioProcessor.noiseEnabled    .store (tabEnabledFor (Tab::Noise),     std::memory_order_relaxed);
+
+                // Sync layer visibility to envelope editor waveform display
+                envelopeEditor.setLayerEnabled (EnvelopeEditor::WaveLayer::Transient, tabEnabledFor (Tab::Transient));
+                envelopeEditor.setLayerEnabled (EnvelopeEditor::WaveLayer::Body,      tabEnabledFor (Tab::Body));
+                envelopeEditor.setLayerEnabled (EnvelopeEditor::WaveLayer::Resonant,  tabEnabledFor (Tab::Resonant));
+                envelopeEditor.setLayerEnabled (EnvelopeEditor::WaveLayer::Noise,     tabEnabledFor (Tab::Noise));
 
                 repaint();
                 return true;
