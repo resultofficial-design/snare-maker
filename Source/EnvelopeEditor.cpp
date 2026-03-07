@@ -661,16 +661,16 @@ void EnvelopeEditor::regenerateWaveform()
         layerPaths[layer].closeSubPath();
     }
 
-    // ── Build SIMPLE paths (peak amplitude envelope line) ──────────────────
-    // Draws the positive peak-envelope as a line (phase-independent).
-    // Uses the same absolute-peak approach as TRUE paths to eliminate
-    // visual beating between layers with different frequencies.
+    // ── Build SIMPLE paths (decimated oscillation line, no fill) ───────────
+    // Sparsely sample the waveform buffer to show the large-scale wave shape
+    // with smooth EMA filtering to remove micro-jitter.
+    constexpr int kSimplePoints = 256;
 
     for (int layer = 0; layer < kNumLayers; ++layer)
     {
         simplePaths[layer].clear();
 
-        if (cols < 2 || plotW < 1.0f)
+        if (plotW < 1.0f)
             continue;
 
         const auto& buf = layerBuffers[layer];
@@ -680,55 +680,34 @@ void EnvelopeEditor::regenerateWaveform()
         const bool envScale = layerUsesSample[layer] && ampEnvForLayer[layer] != nullptr;
         const float volScale = layerVol[layer];
 
-        bool started = false;
+        const int numPts = std::min (kSimplePoints, n);
 
-        for (int c = 0; c < cols; ++c)
+        // Sparse sample + apply envelope/volume scaling
+        std::vector<float> samples (numPts);
+        for (int i = 0; i < numPts; ++i)
         {
-            const int s0 = c * n / cols;
-            const int s1 = std::min (n - 1, (c + 1) * n / cols);
-
-            float lo = buf[(size_t) s0];
-            float hi = lo;
+            const int srcIdx = i * (n - 1) / (numPts - 1);
+            float v = buf[(size_t) srcIdx];
             if (envScale)
-            {
-                float env0 = (float) ampEnvForLayer[layer]->evaluate (
-                    (double) s0 / (double) (n - 1));
-                lo *= env0;
-                hi *= env0;
-            }
+                v *= (float) ampEnvForLayer[layer]->evaluate (
+                    (double) srcIdx / (double) (n - 1));
             if (layerUsesSample[layer])
-            {
-                lo *= volScale;
-                hi *= volScale;
-            }
-
-            for (int s = s0 + 1; s <= s1; ++s)
-            {
-                float v = buf[(size_t) s];
-                if (envScale)
-                    v *= (float) ampEnvForLayer[layer]->evaluate (
-                        (double) s / (double) (n - 1));
-                if (layerUsesSample[layer])
-                    v *= volScale;
-                if (v < lo) lo = v;
-                if (v > hi) hi = v;
-            }
-
-            // Peak absolute amplitude — phase-independent envelope
-            const float peakAbs = std::max (std::abs (lo), std::abs (hi));
-            const float px  = plotL + (float) c;
-            const float py  = plotCY - peakAbs * halfH;
-
-            if (! started)
-            {
-                simplePaths[layer].startNewSubPath (px, py);
-                started = true;
-            }
-            else
-            {
-                simplePaths[layer].lineTo (px, py);
-            }
+                v *= volScale;
+            samples[(size_t) i] = v;
         }
+
+        // EMA smoothing (keeps oscillations, removes micro-jitter)
+        constexpr float kSmooth = 0.4f;
+        for (int i = 1; i < numPts; ++i)
+            samples[(size_t) i] = samples[(size_t) (i - 1)] * (1.0f - kSmooth)
+                                  + samples[(size_t) i] * kSmooth;
+
+        // Build open line path (centred around plotCY)
+        const float step = plotW / (float) (numPts - 1);
+        simplePaths[layer].startNewSubPath (plotL, plotCY - samples[0] * halfH);
+        for (int i = 1; i < numPts; ++i)
+            simplePaths[layer].lineTo (plotL + (float) i * step,
+                                       plotCY - samples[(size_t) i] * halfH);
     }
 }
 
@@ -764,7 +743,7 @@ void EnvelopeEditor::paintWaveform (juce::Graphics& g,
 
             if (isSimple)
             {
-                // SIMPLE: stroke the envelope line path
+                // SIMPLE: stroke-only oscillation line (no fill)
                 if (! simplePaths[i].isEmpty())
                 {
                     g.setColour (base.withAlpha (strokeAlpha));
